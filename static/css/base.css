@@ -1,9 +1,11 @@
-#body {
+body {
+    font-family: 'Source Code Pro', sans-serif;
+}
+
+#content {
     overflow-x: hidden;
     margin-top: 50px;
     margin-bottom: 30px;
-    // background-color: black;
-    // color: white;
 }
 
 .codehilite {
@@ -20,9 +22,9 @@ li p {
     justify-content: space-between;
 
     background-color: #eee;
-    height: 40px;
+    height: 50px;
     padding: 5px;
-    padding-left: 10px;
+    padding-left: 15px;
 
     border-radius: 10px;
 }
@@ -50,8 +52,8 @@ li p {
 }
 
 .icon {
-    width: 30px;
-    height: auto;
+    height: 40px;
+    width: auto;
 }
 
 .no-flash:hover {
@@ -74,7 +76,7 @@ h1, h3 {
 }
 
 #content {
-    width: 70%;
+    width: 90%;
     margin-left: 5%;
     float: left;
 }
@@ -115,15 +117,36 @@ a:hover {
 #pwd-form {
     display: flex;
     flex-direction: column;
-    justify-content: center;
     align-items: center;
-    margin-top: 40px;
+    width: 40%;
+    margin: auto;
     margin-bottom: 20px;
+    padding: 20px;
+}
+
+#pwd-form span {
+    width: 90%;
+}
+
+#pwd-form span input {
+    float: right;
+    width: 60%;
+}
+
+#pwd-form p {
+    text-align: center;
+    margin-bottom: 24px;
+}
+
+label {
+  font-size: 1.1em;
+  font-weight: bold;
 }
 
 #submit {
-    margin-top: 10px;
-    width: 200px;
+    margin: auto;
+    margin-top: 14px;
+    width: 50%;
 }
 
 #content img {
@@ -136,9 +159,10 @@ a:hover {
     margin-top: 14px;
     margin-bottom: 14px;
     border-radius: 5px;
+    border: 1px solid black;
     background-color: #ddd;
     padding: 12px;
-    height: 74px;
+    height: 84px;
 }
 
 .writeup-card h5 {
