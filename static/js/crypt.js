@@ -29,5 +29,7 @@ $('#submit').click(() => {
         $('#pwd-form').remove();
         $('#markdown').html(plaintext);
         $('#markdown').removeClass("hidden");
+
+        MathJax.Hub.Queue(["Typeset", MathJax.Hub, document.getElementById("markdown")]);
     });
 })
