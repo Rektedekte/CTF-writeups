@@ -21,7 +21,7 @@ li p {
     align-items: center;
     justify-content: space-between;
 
-    background-color: #eee;
+    background-color: rgba(209,213,219);
     height: 50px;
     padding: 5px;
     padding-left: 15px;
@@ -162,7 +162,7 @@ label {
     border: 1px solid black;
     background-color: #ddd;
     padding: 12px;
-    height: 84px;
+    height: 88px;
 }
 
 .writeup-card h5 {
@@ -178,13 +178,11 @@ hr {
   border: 0;
   height: 0.5px;
   background: black;
-  margin-top: 28px;
-  margin-bottom: 28px;
 }
 
 .writeup-card h2 {
     margin-top: 6px;
-    margin-bottom: 2px;
+    margin-bottom: 6px;
 }
 
 body {
@@ -193,4 +191,17 @@ body {
 }
 body::-webkit-scrollbar {
     display: none;  /* Safari and Chrome */
+}
+
+.tag {
+    border-radius: 0.25rem;
+    line-height: 1.75;
+    text-transform: uppercase;
+
+    padding-left: 8px;
+    padding-right: 8px;
+    padding-top: 1px;
+
+    background-color: rgba(209,213,219);
+    display: inline-block;
 }

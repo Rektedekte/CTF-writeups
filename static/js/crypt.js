@@ -30,6 +30,7 @@ $('#submit').click(() => {
         $('#markdown').html(plaintext);
         $('#markdown').removeClass("hidden");
 
+        // I pulled hairs on this one
         MathJax.Hub.Queue(["Typeset", MathJax.Hub, document.getElementById("markdown")]);
     });
 })
