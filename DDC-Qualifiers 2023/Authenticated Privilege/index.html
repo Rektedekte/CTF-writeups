@@ -354,7 +354,7 @@
 
 <p>nonce api for testing? Don't mind if i do. The ability to choose the nonce is game breaking for the GCM cipher.</p>
 <p>To explain why, we must understand a few things about AES GCM. The following diagram will be useful:</p>
-<p><img alt="" src="AES_GCM.png" /></p>
+<p><img alt="" src="aes_gcm.png" /></p>
 <p>The iv is used to create counter 0, also called $j_0$. $j_0$ is then encrypted, creating the value called HF (not shown in graph). For each block of plaintext, $j_0$ is incremented to $j_i$, which is then encrypted and XOR'ed by the plaintext block, creating the ciphertext block. The authentication tag is then computed as $GHASH(H, A, C)$ XORed by HF.</p>
 <p>Keep in mind, that XOR in relation to GHASH is defined as addition in the characteristic 2 finite field. Even then, it's completely the same, and i'm neither a mathematician nor a cryptologist. Just know, that bytes, ints and polynomials can be losslessly converted between one another, and XOR is generally used when working with bytes and ints. In the following section, using the polynomial representation is useful to showcase the exploit.</p>
 <p>The significant thing, is what happens when the nonce is reused for two different plaintexts. As HF is only dependent on the key and the nonce, it remains the same. Assuming we have only one plaintext block, the tag would be defined by the following polynomial:</p>
@@ -385,7 +385,7 @@
 </code></pre></div>
 
 <p>Both the request scheme and authentication scheme makes use of the same secret key! With a bit of research, it is revealed, that AES GCM uses ECB as a backend encryption algorithm. Well, it's unfair to call it ECB, as all AES encryption is based on the single block encryption scheme that ECB uses. Bringing out the diagram again:</p>
-<p><img alt="" src="AES_GCM.png" /></p>
+<p><img alt="" src="aes_gcm.png" /></p>
 <p>We see that the iv is encrypted into the mask HF. Notably, we are in control of the value $j_0$ that is passed to the encryption. As we can easily calculate the mask HF, placing any string in $j_0$ will result in HF becoming that string, but encrypted. That is exactly what we need: an oracle to get the encryption of the value "flag.png".</p>
 <p>This is where GCM comes along to ruin the day. As GCM is defined, for any nonce with input size other than 12, it is actually passed through GHASH before becoming $j_0$. If you remember the code:</p>
 <div class="codehilite"><pre><span></span><code>        <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">nonce</span><span class="p">)</span> <span class="o">==</span> <span class="mi">16</span>
