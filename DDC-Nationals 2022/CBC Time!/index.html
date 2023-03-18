@@ -1,0 +1,181 @@
+<!doctype html>
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <title>Writeups</title>
+        <link rel="stylesheet" href="/CTF-writeups/static/css/markdown.css">
+        <link rel="stylesheet" href="/CTF-writeups/static/css/base.css">
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Source+Code+Pro" rel="stylesheet">
+        <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.4/MathJax.js?config=TeX-AMS_HTML-full"></script>
+        <script type="text/x-mathjax-config">
+            MathJax.Hub.Config({
+                tex2jax: {
+                    inlineMath: [["$", "$"], ["\\\\(", "\\\\)"]],
+                    displayMath: [["$$", "$$"], ["\\[", "\\]"]],
+                    processEscapes: true
+                },
+                config: ["MMLorHTML.js"],
+                jax: ["input/TeX", "output/HTML-CSS", "output/NativeMML"],
+                extensions: ["MathMenu.js", "MathZoom.js"]
+            });
+        </script>
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.1/jquery.min.js"></script>
+        <script type="text/javascript" src="/CTF-writeups/static/js/scrypt.js"></script>
+        <script type="text/javascript" src="/CTF-writeups/static/js/aesjs.js"></script>
+    </head>
+    <body>
+        <div id="navbar">
+            <a href="/CTF-writeups" id="root-link">
+                <h2>Rektedekte</h2>
+            </a>
+            <ul id="nav-links">
+				<li><a href="/CTF-writeups/search" class="no-flash">
+					<img src="/CTF-writeups/static/img/search-icon.png" alt="Search icon" class="icon">
+				</a></li>
+                <li><a href="https://github.com/Rektedekte" class="no-flash" target=”_blank”>
+                    <img src="/CTF-writeups/static/img/github-icon.png" alt="Github icon" class="icon">
+                </a></li>
+                <li><a href="https://discordapp.com/users/277155307678072832" class="no-flash" target=”_blank”>
+                    <img src="/CTF-writeups/static/img/discord-icon.png" alt="Discord icon" class="icon">
+                </a></li>
+                <li><a href="https://app.hackthebox.com/users/1052687" class="no-flash" target=”_blank”>
+                    <img src="/CTF-writeups/static/img/hackthebox-icon.png" alt="Hackthebox icon" class="icon">
+                </a></li>
+            </ul>
+        </div>
+        
+    <div id="content">
+        <h3>
+            <a href="/CTF-writeups\DDC-Nationals 2022">DDC-Nationals 2022</a>
+            <a href="/CTF-writeups\DDC-Nationals 2022\CBC Time!/files.zip" class="text-right">Download</a>
+        </h3>
+        <h1>
+            <span>CBC Time!</span>
+            <span class="text-right">[None]</span>
+        </h1>
+        <hr>
+        
+            
+    <div class="tags">
+        
+            
+                <a href="/CTF-writeups/search?q=crypto" class="tag">crypto </a>
+            
+        
+    </div>
+
+        
+        
+            <div id="markdown">
+                <h3>Description</h3>
+<p>Til CBC Time!, får vi udleveret en zip-fil og et link til en web-server.<br />
+Vi får desuden en beskrivelse, som beskriver den overordnet arkitektur og funktion af hjemmesiden,<br />
+og hvordan den decrypterer og opbevarer data krypteret med AES-kryptering.<br />
+Vi får desuden at vide at denne kryptering er self-baked.</p>
+<blockquote>
+<p>Jeg stoler ikke på såkaldte "cloud-storage-providers", så jeg har lavet min eget service, hvor jeg krypterer mine data med AES-kryptering af militærkvalitet og uploader dem til min hjemmeside, hvor en praktikant derefter dekrypterer dem og opbevarer dataen sikkert!</p>
+<p>Cryptogang sagde noget om, at mislykkede dekrypteringer er sårbare over for et "padding-oracle" eller noget, men jeg fiksede det! Og jeg er så sikker på sikkerheden, at jeg endda vil give dig et krypteret flag!</p>
+</blockquote>
+<p>Det sidste paragraf giver os desuden et direkte peg på hvor vi skal lede.<br />
+Dekrypteringen kan nemlig lide af sårbarhed overfor "padding-oracle"-angreb.</p>
+<hr />
+<h3>CBC-Encryption</h3>
+<p>For at have en idé om den opgave der venter, burde vi se dybbere ind i hvilken sårbarhed serveren lider af.<br />
+En hurtig google-søgning vil afsløre, at CBC (Cipher Block Chaining) er betegnelsen for en bestemt form for krypterings-metode,<br />
+som er blok-baseret. Basically, er krypteringen delt op i blokke,<br />
+hvor hver block bliver XOR'ed med den forrige krypterede block, før de bliver krypteret.</p>
+<p><img alt="Encryption diagram" src="Encryption.png" /></p>
+<p>Det præcist omvendte bliver brugt under dekryptering, hvor hver block bliver XOR'ed efter de er blevet ført gennem dekrypteringen.</p>
+<p><img alt="Decryption diagram" src="Decryption.png" /></p>
+<p>De fleste former for CBC-kryptering bruger PKCS7-padding.<br />
+Altså, hvis den sidste block ikke er af en passende længde, <br />
+bliver den paddet med værdier svarende til antallet af manglende bytes.<br />
+Hvis den sidste block er fuldent, bliver der i stedet tilføjet en ny block,<br />
+som udelukkende består af padding. Dette skaber et dilemma,<br />
+nogle dekrypteringsresultater er teknisk set ukorrekte,<br />
+altså de opfylder ikke kravende for PKCS7-padding. <br />
+Hvis denne information videresgives til klienten, <br />
+kan det resultere i en seriøs sårbarhed.</p>
+<p>Mere detaljerede kilder kan findes online.</p>
+<hr />
+<h3>Padding-Oracle attack</h3>
+<p>Hvis en server videregiver informtion om hvorvidt en dekryptering resulterede i validt plaintext,<br />
+er den sårbar overfor det man kalder et padding-oracle angreb.<br />
+For at holde dette writeup simpelt, er det et spørgsmål om at udnytte det XOR der sker i dekrypteringen.<br />
+Da vi ved hvad den tidligere ciphertext-block er, <br />
+samt at serveren vil give en fejl hvis den endelige dekryptering har inkorrekt padding,<br />
+kan man med reglerne for XOR udregne det midterliggende stadie (efter en block er dekrypteret og før den er XOR'ed).<br />
+Ud fra det kan man iterativt udregne plaintext-blocken.</p>
+<p>En langt bedre og mere detaljeret forklaring kan findes ved dette link:<br />
+https://robertheaton.com/2013/07/29/padding-oracle-attack/</p>
+<hr />
+<h3>Recon</h3>
+<p>Før vi begynder at exploite, skal vi lige forstå hvordan severen er sat op.<br />
+Hvis vi ser på det upload-script som er inkluderet i zip-filen, <br />
+kan vi se at han tilgår et dedikeret endpoint for at uploade det krypterede data til serveren:</p>
+<div class="codehilite"><pre><span></span><code><span class="n">TargetUrl</span> <span class="o">=</span> <span class="s2">&quot;http://127.0.0.1:13337/submitdata&quot;</span>
+</code></pre></div>
+
+<p>Det givne URL er selvfølgelig for local host, så vi skal adaptere det til det ip serveren har.<br />
+Vi får også givet at flaget er submitted som et json-payload:</p>
+<div class="codehilite"><pre><span></span><code><span class="n">resp</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="n">TargetUrl</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="n">payload</span><span class="p">)</span>
+</code></pre></div>
+
+<p>Alt denne information kan også findes gennem en smule recon på hjemmesiden.<br />
+Den vigtige information kan findes i <em>server.py</em>.<br />
+Her får vi nemlig indsigt i hvordan vores udvikler har <em>"løst"</em> problemet med padding-oracle:</p>
+<div class="codehilite"><pre><span></span><code><span class="c1"># The unpaid intern processes the data, storing it in multiple backup locations to ensure redundancy!</span>
+<span class="k">def</span> <span class="nf">process</span><span class="p">(</span><span class="n">data</span><span class="p">):</span>
+    <span class="c1"># Due to danish labour laws, for the purposes of DDC we&#39;re simulating the intern&#39;s work using a sleep function</span>
+    <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span>
+    <span class="k">return</span>
+
+<span class="c1"># New and improved padding oracle resistant input handling!</span>
+<span class="nd">@app</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s1">&#39;/submitflag&#39;</span><span class="p">,</span> <span class="n">methods</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;POST&#39;</span><span class="p">])</span>
+<span class="k">def</span> <span class="nf">submitflag</span><span class="p">():</span>
+    <span class="n">submitted_ct</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">form</span><span class="p">[</span><span class="s1">&#39;submitted_flag&#39;</span><span class="p">]</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;submitted value is </span><span class="si">{</span><span class="n">submitted_ct</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="c1"># Decrypt encrypted data</span>
+        <span class="n">submitted_pt</span> <span class="o">=</span> <span class="n">aes_cbc_decrypt</span><span class="p">(</span><span class="n">submitted_ct</span><span class="p">,</span> <span class="n">key</span><span class="p">)</span>
+        <span class="c1"># Unpaid intern processes data</span>
+        <span class="n">process</span><span class="p">(</span><span class="n">submitted_pt</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">send_from_directory</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">,</span> <span class="s1">&#39;received.html&#39;</span><span class="p">)</span>
+    <span class="k">except</span><span class="p">:</span>
+        <span class="c1">## print(&quot;something went wrong, sending error page to user!&quot;)</span>
+        <span class="c1">## return send_from_directory(&#39;.&#39;, &#39;somethingwentwrong.html&#39;)</span>
+
+        <span class="c1"># Cryptogang said telling people when CBC decryptions fail can lead to scary Oracle attacks!!! </span>
+        <span class="c1"># So i&#39;ll just return the same page whether it worked or not.</span>
+        <span class="c1"># Take that hackers!!!!</span>
+        <span class="k">return</span> <span class="n">send_from_directory</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">,</span> <span class="s1">&#39;received.html&#39;</span><span class="p">)</span>
+</code></pre></div>
+
+<p>Dette er basically det som giver os vores padding-oracle. <br />
+Vi kan nu regne ud, at hvis serveren tager mere end 3 sekunder om at give et svar,<br />
+så må vi have fundet en cipher-kode med gyldig padding.</p>
+<hr />
+<h3>Exploit</h3>
+<p>For at spare tiden det ville tage at skrive et fuldt exploit-script,<br />
+brugte jeg i konkurrencen et github script som jeg fandt her:<br />
+https://github.com/mpgn/Padding-oracle-attack</p>
+<p>Dette script er sigtet mod en anden request-form end den som vi skal bruge,<br />
+så en hurtig adaptering er i sin rette. Ved at udskifte call-funktionen og erstatte nogle af argumenterne med konstanter,<br />
+virker scriptet nu med udelukkende vores target. Scriptet kan findes i <em>exploit.py</em>,<br />
+og hvis vi kalder scriptet med vores flag-cipher, får vi dette output:</p>
+<div class="codehilite"><pre><span></span><code>python3 exploit.py -c 81ad7b34d6c4693a96eb5a70ef7aa6af2009c5bffaeed0254caa472466fa18d2b1b1090bf7ac705b86f2afc222e34ba3b8af0fbbda7bd2be2414f9fc77455d39
+
+...
+
+<span class="o">[</span>+<span class="o">]</span> Decrypted value <span class="o">(</span>HEX<span class="o">)</span>: 4444437B4C33346B795F736964335F6368616E6E656C735F6172655F45564552595748455245217D0808080808080808
+<span class="o">[</span>+<span class="o">]</span> Decrypted value <span class="o">(</span>ASCII<span class="o">)</span>: DDC<span class="o">{</span>L34ky_sid3_channels_are_EVERYWHERE!<span class="o">}</span>
+</code></pre></div>
+            </div>
+        
+        
+    </div>
+
+    </body>
+</html>
