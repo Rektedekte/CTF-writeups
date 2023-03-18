@@ -115,6 +115,10 @@ a:hover {
     color: #b00;
 }
 
+#markdown {
+    margin-top: 10px;
+}
+
 .tags {
     font-size: 14px;
 }
@@ -206,6 +210,11 @@ hr {
     background: #eaeaea;
     margin-top: 30px;
     margin-bottom: 30px;
+}
+
+.no-space {
+    margin-top: 4px;
+    margin-bottom: 4px;
 }
 
 .writeup-card h2 {
