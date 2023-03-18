@@ -5,6 +5,11 @@ body {
     overflow-y: scroll;
 }
 
+#no-space {
+    margin-top: 4px;
+    margin-bottom: 4px;
+}
+
 #content {
     overflow-x: hidden;
     margin-top: 50px;
