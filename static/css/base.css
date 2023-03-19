@@ -90,6 +90,18 @@ h1, h3 {
     float: left;
 }
 
+@media only screen and (max-device-width: 812px) {
+  #content {
+    width: 90%;
+    margin-left: 5%;
+  }
+
+  #content img {
+    width: 80%;
+    margin-left: 10%;
+  }
+}
+
 #tree {
     font-size: 20px;
 }
