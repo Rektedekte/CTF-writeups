@@ -81,7 +81,7 @@
 <h3>TLDR</h3>
 <p>An example page of the i3geo development platforms contains an endpoint <code>codemirror.php</code> with local file inclusion. Passing <code>flag.php</code> through a filter gives the source code, containing the flag:</p>
 <blockquote>
-<p>http://exploracao.hkn/i3geo/exemplos/codemirror.php?pagina=php://filter/convert.base64-encode/resource=../flag.php</p>
+<p><a href="http://exploracao.hkn/i3geo/exemplos/codemirror.php?pagina=php://filter/convert.base64-encode/resource=../flag.php">http://exploracao.hkn/i3geo/exemplos/codemirror.php?pagina=php://filter/convert.base64-encode/resource=../flag.php</a></p>
 </blockquote>
 <hr />
 <h3>Writeup</h3>
@@ -89,7 +89,7 @@
 <p>As the challenge description seems to poke fun of something called i3geo, we can only assume that this is something outside of what the challenge creators have made. That would explain the amount of pages on this website, which is typically not found in ctf challenges. </p>
 <p>A quick google search reveals, that i3geo is a development platform for creating websites. Thinking that it's open source, searching for "i3geo github" gives a link to a github page, presumably containing the development platform used in the challenge:</p>
 <blockquote>
-<p>https://github.com/saladesituacao/i3geo</p>
+<p><a href="https://github.com/saladesituacao/i3geo">https://github.com/saladesituacao/i3geo</a></p>
 </blockquote>
 <p>Checking <code>versao.php</code>  confirms this: V. 8.0 alfa. Checking the issue tab of the repository looks promising. There are multiple open vulnerabilities posted by the same user, back in 2022. As the XSS vulnerabilities seem irrelevant, we instead check the LFI vulnerability.</p>
 <p>This issue details an unrestricted Local File Inclusion on the <code>/exemplos/codemirror.php</code> endpoint. In this case, <code>codemirror.php</code> simply includes any file specified in the <code>pagina</code> parameter.</p>
@@ -99,7 +99,7 @@
 </blockquote>
 <p>This would not work however, as php include would execute the code, leading to the exact same page as before. A quick google search reveals a solution: php filters. Essentially, before interpreting the included file, php can apply a filter, such as base64 encoding. Modifying the url to the following:</p>
 <blockquote>
-<p>http://exploracao.hkn/i3geo/exemplos/codemirror.php?pagina=php://filter/convert.base64-encode/resource=../flag.php</p>
+<p><a href="http://exploracao.hkn/i3geo/exemplos/codemirror.php?pagina=php://filter/convert.base64-encode/resource=../flag.php">http://exploracao.hkn/i3geo/exemplos/codemirror.php?pagina=php://filter/convert.base64-encode/resource=../flag.php</a></p>
 </blockquote>
 <p>Using this request yields a base64 string. Decoding it, we can see that it contains the flag:</p>
 <blockquote>
