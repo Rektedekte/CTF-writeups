@@ -1,0 +1,635 @@
+<!doctype html>
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <title>Writeups</title>
+        <link rel="stylesheet" href="/CTF-writeups/static/css/markdown.css">
+        <link rel="stylesheet" href="/CTF-writeups/static/css/base.css">
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Source+Code+Pro" rel="stylesheet">
+        <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.4/MathJax.js?config=TeX-AMS_HTML-full"></script>
+        <script type="text/x-mathjax-config">
+            MathJax.Hub.Config({
+                tex2jax: {
+                    inlineMath: [["$", "$"], ["\\\\(", "\\\\)"]],
+                    displayMath: [["$$", "$$"], ["\\[", "\\]"]],
+                    processEscapes: true
+                },
+                config: ["MMLorHTML.js"],
+                jax: ["input/TeX", "output/HTML-CSS", "output/NativeMML"],
+                extensions: ["MathMenu.js", "MathZoom.js"]
+            });
+        </script>
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.1/jquery.min.js"></script>
+        <script type="text/javascript" src="/CTF-writeups/static/js/scrypt.js"></script>
+        <script type="text/javascript" src="/CTF-writeups/static/js/aesjs.js"></script>
+    </head>
+    <body>
+        <div id="navbar">
+            <a href="/CTF-writeups" id="root-link">
+                <h2>Rektedekte</h2>
+            </a>
+            <ul id="nav-links">
+				<li><a href="/CTF-writeups/search" class="no-flash">
+					<img src="/CTF-writeups/static/img/search-icon.png" alt="Search icon" class="icon">
+				</a></li>
+                <li><a href="https://github.com/Rektedekte" class="no-flash" target=”_blank”>
+                    <img src="/CTF-writeups/static/img/github-icon.png" alt="Github icon" class="icon">
+                </a></li>
+                <li><a href="https://discordapp.com/users/277155307678072832" class="no-flash" target=”_blank”>
+                    <img src="/CTF-writeups/static/img/discord-icon.png" alt="Discord icon" class="icon">
+                </a></li>
+                <li><a href="https://app.hackthebox.com/users/1052687" class="no-flash" target=”_blank”>
+                    <img src="/CTF-writeups/static/img/hackthebox-icon.png" alt="Hackthebox icon" class="icon">
+                </a></li>
+            </ul>
+        </div>
+        
+    <div id="content">
+        <h3>
+            <a href="/CTF-writeups\DDC-Qualifiers 2023">DDC-Qualifiers 2023</a>
+            <a href="/CTF-writeups\DDC-Qualifiers 2023\Authenticated Privilege/files.zip" class="text-right">Download</a>
+        </h3>
+        <h1>
+            <span>Authenticated Privilege</span>
+            <span class="text-right">[1]</span>
+        </h1>
+        <hr class="no-space">
+        
+            
+    <div class="tags">
+        
+            
+                <a href="/CTF-writeups/search?q=crypto" class="tag">crypto </a>
+            
+        
+    </div>
+
+        
+        
+            <div id="markdown">
+                <h3>Description</h3>
+<p>We are given a website and a download link to the source code.</p>
+<blockquote>
+<p><strong>Proposed difficulty:</strong> Very Hard<br />
+<strong>Kategori:</strong> Cryptography</p>
+<p><strong>Opgave beskrivelse</strong> Nu er det nok med bit flips og usikre hjemmesider. Vi bruger kun den stærkeste autentificerede kryptering til vores cookies!</p>
+<p>Held og lykke!</p>
+<p><a href="http://authpriv.hkn">http://authpriv.hkn</a></p>
+<p><a href="https://nextcloud.ntp-event.dk:8443/s/jy22ZNTHXqRBHbJ/download/challenge-content.zip">Download</a></p>
+</blockquote>
+<hr />
+<h3>TLDR</h3>
+<p>Nonce reuse through an optional parameter "nonce", allows us to recover the GCM authentication key H. By crafting a nonce that GHASHes into "flag.png", we can obtain the encryption for said string, essentially forging the id for flag through reuse of the secret key. We can then forge a ciphertext through bit-flipping, and a corresponding tag using H. Passing it all to the server gives us the image, which contains the flag.</p>
+<hr />
+<h3>Initial recon</h3>
+<p>Opening the provided website, we are taken to a simple page, with the option of registering as either Alice or Bob:</p>
+<p><img alt="" src="register.png" /></p>
+<p>Clicking either button, we are taken to a new page, with the option of viewing various psyducks:</p>
+<p><img alt="" src="view.png" /></p>
+<p>Clicking either strong or party yields an image, but clicking gentleman gives an error message, requiring some form of admin access. Checking dev tools, the initial registration yields a cookie, and the individual psyducks are requested via a hex token, presumably checked against your cookie permissions.</p>
+<hr />
+<h3>Investigating the code</h3>
+<p>As we are also provided with a source, that is the obvious next course of action. Here is the source code for the app:</p>
+<div class="codehilite"><pre><span></span><code><span class="ch">#!/usr/bin/env python3</span>
+<span class="kn">from</span> <span class="nn">flask</span> <span class="kn">import</span> <span class="n">Flask</span><span class="p">,</span><span class="n">request</span><span class="p">,</span><span class="n">Response</span><span class="p">,</span><span class="n">render_template</span><span class="p">,</span><span class="n">abort</span><span class="p">,</span><span class="n">make_response</span>
+<span class="kn">import</span> <span class="nn">json</span><span class="o">,</span><span class="nn">random</span><span class="o">,</span><span class="nn">os</span><span class="o">,</span><span class="nn">base64</span>
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">from</span> <span class="nn">Crypto.Cipher</span> <span class="kn">import</span> <span class="n">AES</span>
+<span class="kn">from</span> <span class="nn">Crypto.Util.Padding</span> <span class="kn">import</span> <span class="n">pad</span><span class="p">,</span> <span class="n">unpad</span>
+<span class="kn">from</span> <span class="nn">hashlib</span> <span class="kn">import</span> <span class="n">sha256</span>
+<span class="kn">import</span> <span class="nn">time</span>
+<span class="c1">### Global variables</span>
+<span class="n">app</span> <span class="o">=</span> <span class="n">Flask</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+<span class="n">secret_key</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">urandom</span><span class="p">(</span><span class="mi">16</span><span class="p">)</span>
+
+<span class="c1"># create valid encryptions for my images!</span>
+<span class="k">def</span> <span class="nf">encrypt_request</span><span class="p">(</span><span class="n">imagename</span><span class="p">):</span>
+    <span class="n">pt</span> <span class="o">=</span> <span class="n">imagename</span><span class="o">.</span><span class="n">encode</span><span class="p">()</span>
+    <span class="n">pt</span> <span class="o">=</span> <span class="n">pad</span><span class="p">(</span><span class="n">pt</span><span class="p">,</span><span class="mi">16</span><span class="p">)</span>
+    <span class="n">cipher</span> <span class="o">=</span> <span class="n">AES</span><span class="o">.</span><span class="n">new</span><span class="p">(</span><span class="n">secret_key</span><span class="p">,</span> <span class="n">AES</span><span class="o">.</span><span class="n">MODE_ECB</span><span class="p">)</span>
+    <span class="n">ct</span> <span class="o">=</span> <span class="n">cipher</span><span class="o">.</span><span class="n">encrypt</span><span class="p">(</span><span class="n">pt</span><span class="p">)</span><span class="o">.</span><span class="n">hex</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">ct</span>
+
+<span class="c1"># create valid encryptions for my images!</span>
+<span class="k">def</span> <span class="nf">decrypt_request</span><span class="p">(</span><span class="n">duck_id</span><span class="p">):</span>
+    <span class="n">ct</span> <span class="o">=</span> <span class="nb">bytes</span><span class="o">.</span><span class="n">fromhex</span><span class="p">(</span><span class="n">duck_id</span><span class="p">)</span>
+    <span class="n">cipher</span> <span class="o">=</span> <span class="n">AES</span><span class="o">.</span><span class="n">new</span><span class="p">(</span><span class="n">secret_key</span><span class="p">,</span> <span class="n">AES</span><span class="o">.</span><span class="n">MODE_ECB</span><span class="p">)</span>
+    <span class="n">paddedpt</span> <span class="o">=</span> <span class="n">cipher</span><span class="o">.</span><span class="n">decrypt</span><span class="p">(</span><span class="n">ct</span><span class="p">)</span>
+    <span class="n">pt</span> <span class="o">=</span> <span class="n">unpad</span><span class="p">(</span><span class="n">paddedpt</span><span class="p">,</span><span class="mi">16</span><span class="p">)</span><span class="o">.</span><span class="n">decode</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">pt</span>
+
+<span class="c1"># My images!</span>
+<span class="n">images</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;fast.png&quot;</span><span class="p">,</span> <span class="s2">&quot;gentleman.png&quot;</span><span class="p">,</span> <span class="s2">&quot;panic.png&quot;</span><span class="p">,</span> <span class="s2">&quot;party.png&quot;</span><span class="p">,</span> <span class="s2">&quot;strong.png&quot;</span><span class="p">,</span> <span class="s2">&quot;flag.png&quot;</span><span class="p">]</span>
+
+<span class="n">encrypted_requests</span> <span class="o">=</span> <span class="p">{}</span>
+<span class="c1"># Create image Identifiers for publicly available images</span>
+<span class="k">for</span> <span class="n">image</span> <span class="ow">in</span> <span class="n">images</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]:</span>
+    <span class="n">encrypted_requests</span><span class="p">[</span><span class="n">image</span><span class="p">]</span> <span class="o">=</span> <span class="n">encrypt_request</span><span class="p">(</span><span class="n">image</span><span class="p">)</span>
+
+
+<span class="c1"># create secure AES_GCM authenticated user cookie!</span>
+<span class="k">def</span> <span class="nf">gen_user_cookie</span><span class="p">(</span><span class="n">username</span><span class="p">,</span> <span class="n">nonce</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">nonce</span> <span class="o">==</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">nonce</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">urandom</span><span class="p">(</span><span class="mi">12</span><span class="p">)</span>
+    <span class="n">cookie_dict</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">cookie_dict</span><span class="p">[</span><span class="s2">&quot;username&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">username</span>
+    <span class="n">cookie_dict</span><span class="p">[</span><span class="s2">&quot;admin_access&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">pt</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">cookie_dict</span><span class="p">)</span><span class="o">.</span><span class="n">encode</span><span class="p">()</span>
+    <span class="n">cipher</span> <span class="o">=</span> <span class="n">AES</span><span class="o">.</span><span class="n">new</span><span class="p">(</span><span class="n">secret_key</span><span class="p">,</span> <span class="n">AES</span><span class="o">.</span><span class="n">MODE_GCM</span><span class="p">,</span> <span class="n">nonce</span> <span class="o">=</span> <span class="n">nonce</span><span class="p">)</span>
+    <span class="n">ct</span><span class="p">,</span> <span class="n">tag</span> <span class="o">=</span> <span class="n">cipher</span><span class="o">.</span><span class="n">encrypt_and_digest</span><span class="p">(</span><span class="n">pt</span><span class="p">)</span>
+    <span class="n">cookie</span> <span class="o">=</span> <span class="n">nonce</span><span class="o">.</span><span class="n">hex</span><span class="p">()</span> <span class="o">+</span> <span class="s2">&quot;.&quot;</span> <span class="o">+</span> <span class="n">ct</span><span class="o">.</span><span class="n">hex</span><span class="p">()</span> <span class="o">+</span> <span class="s2">&quot;.&quot;</span> <span class="o">+</span> <span class="n">tag</span><span class="o">.</span><span class="n">hex</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">cookie</span>
+
+<span class="c1"># decode cookie!</span>
+<span class="k">def</span> <span class="nf">decode_cookie</span><span class="p">(</span><span class="n">cookie</span><span class="p">):</span>
+    <span class="n">cookie</span> <span class="o">=</span> <span class="n">cookie</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;.&quot;</span><span class="p">)</span>
+    <span class="n">nonce</span><span class="p">,</span> <span class="n">ct</span><span class="p">,</span> <span class="n">tag</span> <span class="o">=</span> <span class="p">[</span><span class="nb">bytes</span><span class="o">.</span><span class="n">fromhex</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">cookie</span><span class="p">]</span>
+    <span class="n">cipher</span> <span class="o">=</span> <span class="n">AES</span><span class="o">.</span><span class="n">new</span><span class="p">(</span><span class="n">secret_key</span><span class="p">,</span> <span class="n">AES</span><span class="o">.</span><span class="n">MODE_GCM</span><span class="p">,</span> <span class="n">nonce</span> <span class="o">=</span> <span class="n">nonce</span><span class="p">)</span>
+    <span class="n">pt</span> <span class="o">=</span> <span class="n">cipher</span><span class="o">.</span><span class="n">decrypt_and_verify</span><span class="p">(</span><span class="n">ct</span><span class="p">,</span><span class="n">tag</span><span class="p">)</span><span class="o">.</span><span class="n">decode</span><span class="p">()</span>
+    <span class="n">cookie_dict</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">pt</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">cookie_dict</span>
+
+
+<span class="nd">@app</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s1">&#39;/view&#39;</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">viewPsy</span><span class="p">():</span>
+    <span class="n">user_cookie</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">cookies</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;permissions&#39;</span><span class="p">)</span>
+    <span class="n">duck_id</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">args</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;psyduck&#39;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">user_cookie</span> <span class="o">==</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">Response</span><span class="p">(</span><span class="s2">&quot;No cookie set&quot;</span><span class="p">)</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">cookie_dict</span> <span class="o">=</span> <span class="n">decode_cookie</span><span class="p">(</span><span class="n">user_cookie</span><span class="p">)</span>
+    <span class="k">except</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">Response</span><span class="p">(</span><span class="s2">&quot;Something went wrong with your cookie&quot;</span><span class="p">)</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">requested_duck</span> <span class="o">=</span> <span class="n">decrypt_request</span><span class="p">(</span><span class="n">duck_id</span><span class="p">)</span>
+    <span class="k">except</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">Response</span><span class="p">(</span><span class="s2">&quot;something went wrong during decryption of your duck id&quot;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">requested_duck</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">images</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">Response</span><span class="p">(</span><span class="s2">&quot;invalid duck requested&quot;</span><span class="p">)</span>
+    <span class="n">username</span> <span class="o">=</span> <span class="n">cookie_dict</span><span class="p">[</span><span class="s2">&quot;username&quot;</span><span class="p">]</span>
+    <span class="n">access_level</span> <span class="o">=</span> <span class="n">cookie_dict</span><span class="p">[</span><span class="s2">&quot;admin_access&quot;</span><span class="p">]</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">requested_duck</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;strong.png&quot;</span><span class="p">,</span> <span class="s2">&quot;party.png&quot;</span><span class="p">]</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">access_level</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">Response</span><span class="p">(</span><span class="s2">&quot;Psyducks other than strong duck and party duck require admin access to view.&quot;</span><span class="p">)</span>
+
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;./images/</span><span class="si">{</span><span class="n">requested_duck</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span> <span class="s1">&#39;rb&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">Response</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">(),</span> <span class="n">mimetype</span><span class="o">=</span><span class="s1">&#39;image/png&#39;</span><span class="p">)</span>
+
+
+
+<span class="nd">@app</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s1">&#39;/register&#39;</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">register</span><span class="p">():</span>
+    <span class="n">username</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">args</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;username&#39;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">username</span> <span class="o">==</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">Response</span><span class="p">(</span><span class="s2">&quot;attempted to register without username&quot;</span><span class="p">)</span>
+
+    <span class="c1"># nonce api for tesing</span>
+    <span class="n">nonce</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">args</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;nonce&#39;</span><span class="p">)</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">assert</span> <span class="ow">not</span> <span class="n">nonce</span> <span class="o">==</span> <span class="kc">None</span>
+        <span class="n">nonce</span> <span class="o">=</span> <span class="nb">bytes</span><span class="o">.</span><span class="n">fromhex</span><span class="p">(</span><span class="n">nonce</span><span class="p">)</span>
+        <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">nonce</span><span class="p">)</span> <span class="o">==</span> <span class="mi">16</span>
+        <span class="n">cookie</span> <span class="o">=</span> <span class="n">gen_user_cookie</span><span class="p">(</span><span class="n">username</span><span class="p">,</span> <span class="n">nonce</span><span class="p">)</span>
+    <span class="k">except</span><span class="p">:</span>
+        <span class="n">cookie</span> <span class="o">=</span> <span class="n">gen_user_cookie</span><span class="p">(</span><span class="n">username</span><span class="p">)</span>
+
+    <span class="n">res</span> <span class="o">=</span> <span class="n">make_response</span><span class="p">()</span>
+    <span class="n">res</span><span class="o">.</span><span class="n">set_cookie</span><span class="p">(</span><span class="s1">&#39;permissions&#39;</span><span class="p">,</span> <span class="n">cookie</span><span class="p">)</span>
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s1">&#39;./templates/view.html&#39;</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">()</span>
+
+    <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;ZZuserZZ&quot;</span><span class="p">,</span> <span class="n">username</span><span class="p">)</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;ZZstrongZZ&quot;</span><span class="p">,</span> <span class="n">encrypted_requests</span><span class="p">[</span><span class="s2">&quot;strong.png&quot;</span><span class="p">])</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;ZZpartyZZ&quot;</span><span class="p">,</span> <span class="n">encrypted_requests</span><span class="p">[</span><span class="s2">&quot;party.png&quot;</span><span class="p">])</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;ZZgentlemanZZ&quot;</span><span class="p">,</span> <span class="n">encrypted_requests</span><span class="p">[</span><span class="s2">&quot;gentleman.png&quot;</span><span class="p">])</span>
+    <span class="n">res</span><span class="o">.</span><span class="n">set_data</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">res</span>
+
+
+
+<span class="k">def</span> <span class="nf">browsePsy</span><span class="p">():</span>
+    <span class="n">user_cookie</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">cookies</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;permissions&#39;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">user_cookie</span> <span class="o">==</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">Response</span><span class="p">(</span><span class="s2">&quot;No cookie set&quot;</span><span class="p">)</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">cookie_dict</span> <span class="o">=</span> <span class="n">decode_cookie</span><span class="p">(</span><span class="n">user_cookie</span><span class="p">)</span>
+    <span class="k">except</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">Response</span><span class="p">(</span><span class="s2">&quot;Something went wrong with your cookie&quot;</span><span class="p">)</span>
+
+    <span class="n">username</span> <span class="o">=</span> <span class="n">cookie_dict</span><span class="p">[</span><span class="s2">&quot;username&quot;</span><span class="p">]</span>
+
+
+    <span class="n">res</span> <span class="o">=</span> <span class="n">make_response</span><span class="p">()</span>
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s1">&#39;./templates/view.html&#39;</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">()</span>
+
+    <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;ZZuserZZ&quot;</span><span class="p">,</span> <span class="n">username</span><span class="p">)</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;ZZstrongZZ&quot;</span><span class="p">,</span> <span class="n">encrypted_requests</span><span class="p">[</span><span class="s2">&quot;strong.png&quot;</span><span class="p">])</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;ZZpartyZZ&quot;</span><span class="p">,</span> <span class="n">encrypted_requests</span><span class="p">[</span><span class="s2">&quot;party.png&quot;</span><span class="p">])</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;ZZgentlemanZZ&quot;</span><span class="p">,</span> <span class="n">encrypted_requests</span><span class="p">[</span><span class="s2">&quot;gentleman.png&quot;</span><span class="p">])</span>
+
+    <span class="n">res</span><span class="o">.</span><span class="n">set_data</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">res</span>
+
+
+
+
+<span class="nd">@app</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s2">&quot;/&quot;</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">index</span><span class="p">():</span>
+    <span class="n">user_cookie</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">cookies</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;permissions&#39;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">user_cookie</span> <span class="o">==</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">res</span> <span class="o">=</span> <span class="n">make_response</span><span class="p">()</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s1">&#39;./templates/register.html&#39;</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+            <span class="n">res</span><span class="o">.</span><span class="n">set_data</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">())</span>
+        <span class="k">return</span> <span class="n">res</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">browsePsy</span><span class="p">()</span>
+
+
+
+<span class="k">if</span><span class="p">(</span><span class="vm">__name__</span> <span class="o">==</span> <span class="s1">&#39;__main__&#39;</span><span class="p">):</span>
+    <span class="n">app</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">host</span><span class="o">=</span><span class="s1">&#39;0.0.0.0&#39;</span><span class="p">)</span>
+</code></pre></div>
+
+<p>There's a lot to unpack. Going backwards, we must first identify our goal. Considering the existence of a "flag.png" in the images list, a good guess would be, that we have to get that image. We first check the <code>viewPsy</code> function:</p>
+<div class="codehilite"><pre><span></span><code><span class="nd">@app</span><span class="o">.</span><span class="n">route</span><span class="p">(</span><span class="s1">&#39;/view&#39;</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">viewPsy</span><span class="p">():</span>
+    <span class="n">user_cookie</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">cookies</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;permissions&#39;</span><span class="p">)</span>
+    <span class="n">duck_id</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">args</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;psyduck&#39;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">user_cookie</span> <span class="o">==</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">Response</span><span class="p">(</span><span class="s2">&quot;No cookie set&quot;</span><span class="p">)</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">cookie_dict</span> <span class="o">=</span> <span class="n">decode_cookie</span><span class="p">(</span><span class="n">user_cookie</span><span class="p">)</span>
+    <span class="k">except</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">Response</span><span class="p">(</span><span class="s2">&quot;Something went wrong with your cookie&quot;</span><span class="p">)</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">requested_duck</span> <span class="o">=</span> <span class="n">decrypt_request</span><span class="p">(</span><span class="n">duck_id</span><span class="p">)</span>
+    <span class="k">except</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">Response</span><span class="p">(</span><span class="s2">&quot;something went wrong during decryption of your duck id&quot;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">requested_duck</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">images</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">Response</span><span class="p">(</span><span class="s2">&quot;invalid duck requested&quot;</span><span class="p">)</span>
+    <span class="n">username</span> <span class="o">=</span> <span class="n">cookie_dict</span><span class="p">[</span><span class="s2">&quot;username&quot;</span><span class="p">]</span>
+    <span class="n">access_level</span> <span class="o">=</span> <span class="n">cookie_dict</span><span class="p">[</span><span class="s2">&quot;admin_access&quot;</span><span class="p">]</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">requested_duck</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;strong.png&quot;</span><span class="p">,</span> <span class="s2">&quot;party.png&quot;</span><span class="p">]</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">access_level</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">Response</span><span class="p">(</span><span class="s2">&quot;Psyducks other than strong duck and party duck require admin access to view.&quot;</span><span class="p">)</span>
+
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;./images/</span><span class="si">{</span><span class="n">requested_duck</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span> <span class="s1">&#39;rb&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">Response</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">(),</span> <span class="n">mimetype</span><span class="o">=</span><span class="s1">&#39;image/png&#39;</span><span class="p">)</span>
+</code></pre></div>
+
+<p>This function does a couple of things:</p>
+<ol>
+<li>Decode the user cookie</li>
+<li>Decode the users request</li>
+<li>Check that the users request is valid</li>
+<li>Check if user cookie has permissions to view given psyduck</li>
+</ol>
+<p>Jumping into the cookie first, we have the following functions:</p>
+<div class="codehilite"><pre><span></span><code><span class="c1"># create secure AES_GCM authenticated user cookie!</span>
+<span class="k">def</span> <span class="nf">gen_user_cookie</span><span class="p">(</span><span class="n">username</span><span class="p">,</span> <span class="n">nonce</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">nonce</span> <span class="o">==</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">nonce</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">urandom</span><span class="p">(</span><span class="mi">12</span><span class="p">)</span>
+    <span class="n">cookie_dict</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">cookie_dict</span><span class="p">[</span><span class="s2">&quot;username&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">username</span>
+    <span class="n">cookie_dict</span><span class="p">[</span><span class="s2">&quot;admin_access&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">pt</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">cookie_dict</span><span class="p">)</span><span class="o">.</span><span class="n">encode</span><span class="p">()</span>
+    <span class="n">cipher</span> <span class="o">=</span> <span class="n">AES</span><span class="o">.</span><span class="n">new</span><span class="p">(</span><span class="n">secret_key</span><span class="p">,</span> <span class="n">AES</span><span class="o">.</span><span class="n">MODE_GCM</span><span class="p">,</span> <span class="n">nonce</span> <span class="o">=</span> <span class="n">nonce</span><span class="p">)</span>
+    <span class="n">ct</span><span class="p">,</span> <span class="n">tag</span> <span class="o">=</span> <span class="n">cipher</span><span class="o">.</span><span class="n">encrypt_and_digest</span><span class="p">(</span><span class="n">pt</span><span class="p">)</span>
+    <span class="n">cookie</span> <span class="o">=</span> <span class="n">nonce</span><span class="o">.</span><span class="n">hex</span><span class="p">()</span> <span class="o">+</span> <span class="s2">&quot;.&quot;</span> <span class="o">+</span> <span class="n">ct</span><span class="o">.</span><span class="n">hex</span><span class="p">()</span> <span class="o">+</span> <span class="s2">&quot;.&quot;</span> <span class="o">+</span> <span class="n">tag</span><span class="o">.</span><span class="n">hex</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">cookie</span>
+
+<span class="c1"># decode cookie!</span>
+<span class="k">def</span> <span class="nf">decode_cookie</span><span class="p">(</span><span class="n">cookie</span><span class="p">):</span>
+    <span class="n">cookie</span> <span class="o">=</span> <span class="n">cookie</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;.&quot;</span><span class="p">)</span>
+    <span class="n">nonce</span><span class="p">,</span> <span class="n">ct</span><span class="p">,</span> <span class="n">tag</span> <span class="o">=</span> <span class="p">[</span><span class="nb">bytes</span><span class="o">.</span><span class="n">fromhex</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">cookie</span><span class="p">]</span>
+    <span class="n">cipher</span> <span class="o">=</span> <span class="n">AES</span><span class="o">.</span><span class="n">new</span><span class="p">(</span><span class="n">secret_key</span><span class="p">,</span> <span class="n">AES</span><span class="o">.</span><span class="n">MODE_GCM</span><span class="p">,</span> <span class="n">nonce</span> <span class="o">=</span> <span class="n">nonce</span><span class="p">)</span>
+    <span class="n">pt</span> <span class="o">=</span> <span class="n">cipher</span><span class="o">.</span><span class="n">decrypt_and_verify</span><span class="p">(</span><span class="n">ct</span><span class="p">,</span><span class="n">tag</span><span class="p">)</span><span class="o">.</span><span class="n">decode</span><span class="p">()</span>
+    <span class="n">cookie_dict</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">pt</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">cookie_dict</span>
+</code></pre></div>
+
+<p>The user cookie is an encrypted dictionary, containing the username and the admin privilege. It is encrypted via AES GCM, making it seemingly safe to the bit-flipping attack that was used in flipping privilege. GCM has an authentication tag specific to a given nonce, key and ciphertext: the ciphertext cannot be modified, as the <code>decrypt_and_verify</code> function would throw an error.</p>
+<p>The next thing to check out, is the request decoding:</p>
+<div class="codehilite"><pre><span></span><code><span class="c1"># create valid encryptions for my images!</span>
+<span class="k">def</span> <span class="nf">encrypt_request</span><span class="p">(</span><span class="n">imagename</span><span class="p">):</span>
+    <span class="n">pt</span> <span class="o">=</span> <span class="n">imagename</span><span class="o">.</span><span class="n">encode</span><span class="p">()</span>
+    <span class="n">pt</span> <span class="o">=</span> <span class="n">pad</span><span class="p">(</span><span class="n">pt</span><span class="p">,</span><span class="mi">16</span><span class="p">)</span>
+    <span class="n">cipher</span> <span class="o">=</span> <span class="n">AES</span><span class="o">.</span><span class="n">new</span><span class="p">(</span><span class="n">secret_key</span><span class="p">,</span> <span class="n">AES</span><span class="o">.</span><span class="n">MODE_ECB</span><span class="p">)</span>
+    <span class="n">ct</span> <span class="o">=</span> <span class="n">cipher</span><span class="o">.</span><span class="n">encrypt</span><span class="p">(</span><span class="n">pt</span><span class="p">)</span><span class="o">.</span><span class="n">hex</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">ct</span>
+
+<span class="c1"># create valid encryptions for my images!</span>
+<span class="k">def</span> <span class="nf">decrypt_request</span><span class="p">(</span><span class="n">duck_id</span><span class="p">):</span>
+    <span class="n">ct</span> <span class="o">=</span> <span class="nb">bytes</span><span class="o">.</span><span class="n">fromhex</span><span class="p">(</span><span class="n">duck_id</span><span class="p">)</span>
+    <span class="n">cipher</span> <span class="o">=</span> <span class="n">AES</span><span class="o">.</span><span class="n">new</span><span class="p">(</span><span class="n">secret_key</span><span class="p">,</span> <span class="n">AES</span><span class="o">.</span><span class="n">MODE_ECB</span><span class="p">)</span>
+    <span class="n">paddedpt</span> <span class="o">=</span> <span class="n">cipher</span><span class="o">.</span><span class="n">decrypt</span><span class="p">(</span><span class="n">ct</span><span class="p">)</span>
+    <span class="n">pt</span> <span class="o">=</span> <span class="n">unpad</span><span class="p">(</span><span class="n">paddedpt</span><span class="p">,</span><span class="mi">16</span><span class="p">)</span><span class="o">.</span><span class="n">decode</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">pt</span>
+</code></pre></div>
+
+<p>An extra layer of security it seems. In order to request a given psyduck, we would have to know the padded and encrypted value of that psyduck.</p>
+<p>This challenge seems to pose two problems: The ability to forge a ciphertext and authentication tag for an admin user, and the ability to pass the encrypted value of "flag.png" to the website.</p>
+<hr />
+<h3>Nonce reuse (AKA the forbidden attack)</h3>
+<p>If you look at the code for <code>register</code> you'll see a very sus piece of code:</p>
+<div class="codehilite"><pre><span></span><code><span class="c1"># nonce api for tesing</span>
+<span class="n">nonce</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">args</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;nonce&#39;</span><span class="p">)</span>
+<span class="k">try</span><span class="p">:</span>
+    <span class="k">assert</span> <span class="ow">not</span> <span class="n">nonce</span> <span class="o">==</span> <span class="kc">None</span>
+    <span class="n">nonce</span> <span class="o">=</span> <span class="nb">bytes</span><span class="o">.</span><span class="n">fromhex</span><span class="p">(</span><span class="n">nonce</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">nonce</span><span class="p">)</span> <span class="o">==</span> <span class="mi">16</span>
+    <span class="n">cookie</span> <span class="o">=</span> <span class="n">gen_user_cookie</span><span class="p">(</span><span class="n">username</span><span class="p">,</span> <span class="n">nonce</span><span class="p">)</span>
+<span class="k">except</span><span class="p">:</span>
+    <span class="n">cookie</span> <span class="o">=</span> <span class="n">gen_user_cookie</span><span class="p">(</span><span class="n">username</span><span class="p">)</span>
+</code></pre></div>
+
+<p>nonce api for testing? Don't mind if i do. The ability to choose the nonce is game breaking for the GCM cipher.</p>
+<p>To explain why, we must understand a few things about AES GCM. The following diagram will be useful:</p>
+<p><img alt="" src="aes_gcm.png" /></p>
+<p>The iv is used to create counter 0, also called $j_0$. $j_0$ is then encrypted, creating the value called HF (not shown in graph). For each block of plaintext, $j_0$ is incremented to $j_i$, which is then encrypted and XOR'ed by the plaintext block, creating the ciphertext block. The authentication tag is then computed as $GHASH(H, A, C)$ XORed by HF.</p>
+<p>Keep in mind, that XOR in relation to GHASH is defined as addition in the characteristic 2 finite field. Even then, it's completely the same, and i'm neither a mathematician nor a cryptologist. Just know, that bytes, ints and polynomials can be losslessly converted between one another, and XOR is generally used when working with bytes and ints. In the following section, using the polynomial representation is useful to showcase the exploit.</p>
+<p>The significant thing, is what happens when the nonce is reused for two different plaintexts. As HF is only dependent on the key and the nonce, it remains the same. Assuming we have only one plaintext block, the tag would be defined by the following polynomial:</p>
+<p>
+<script type="math/tex; mode=display">T=AD\cdot H^3+C\cdot H^2+L\cdot H + HF</script>
+</p>
+<p>where $AD$ is the associated/additional data, $C$ is the ciphertext block, $L$ is the length of $AD$ and $CT$ and $HF$ is the masking block generated by encrypting $j_0$. As addition is equivalent to XOR, adding the two tags together effectively washes out HF, since it is the same. It effectively becomes the following polynomial:</p>
+<p>
+<script type="math/tex; mode=display">T_1+T_2=(AD_1+AD_2)\cdot H^3+(C_1+C_2)\cdot H^2+(L_1+L_2)\cdot H</script>
+</p>
+<p>As associated data, ciphertext and length are all known, this leaves a known polynomial with the authentication key H as a root. We can then factor the polynomial to get the key. In our scenario, this becomes easier. We are working with two blocks of plaintext/ciphertext, but to balance that, $AD$ is not included, and $L_1=L_2$, reducing the polynomial to:</p>
+<p>
+<script type="math/tex; mode=display">T_1+T_2=(C_{1,1}+C_{2,1})\cdot H^3+(C_{1,2}+C_{2,2})\cdot H^2</script>
+</p>
+<p>With bigger plaintexts, factoring would result in multiple possible authentication keys, but with a small plaintext, it should return the correct H. As a quick mention, i would have understood nothing had it not been for <a href="https://cryptopals.com/sets/8/challenges/63.txt">this writeup</a>.</p>
+<p>With the authentication key recovered, forging a tag is trivial. We must simply calculate $GHASH(H, AD, C_{new})+HF$, with $HF=GHASH(H, AD, C_1)+T_1$ for one of the original pairs of ciphertext and tag. This authentication tag is now valid for the provided ciphertext $C_{new}$. Notice that $C_{new}$ can be forged by simple XOR bit-flip, just like with AES CTR.</p>
+<hr />
+<h3>Encryption forgery</h3>
+<p>With that, we are able to forge an authentication tag for any given ciphertext we want. But we are still not ready to solve the challenge: we do not have the id to request flag.png. Examining the code, yields no major clues as to how we would be able to get it. The secret key seems entirely safe, and even if we could recover the secret key, it would make the nonce reuse irrelevant. We also can't trick the code into encrypting "flag.png": it only calls the encryption once, and it's outside our control.</p>
+<p>Here we have to get a little creative. Looking at the code, we see a curious thing:</p>
+<div class="codehilite"><pre><span></span><code><span class="k">def</span> <span class="nf">encrypt_request</span><span class="p">(</span><span class="n">imagename</span><span class="p">):</span>
+    <span class="o">...</span>
+    <span class="n">cipher</span> <span class="o">=</span> <span class="n">AES</span><span class="o">.</span><span class="n">new</span><span class="p">(</span><span class="n">secret_key</span><span class="p">,</span> <span class="n">AES</span><span class="o">.</span><span class="n">MODE_ECB</span><span class="p">)</span>
+<span class="o">...</span>
+<span class="k">def</span> <span class="nf">gen_user_cookie</span><span class="p">(</span><span class="n">username</span><span class="p">,</span> <span class="n">nonce</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+    <span class="o">...</span>
+    <span class="n">cipher</span> <span class="o">=</span> <span class="n">AES</span><span class="o">.</span><span class="n">new</span><span class="p">(</span><span class="n">secret_key</span><span class="p">,</span> <span class="n">AES</span><span class="o">.</span><span class="n">MODE_GCM</span><span class="p">,</span> <span class="n">nonce</span> <span class="o">=</span> <span class="n">nonce</span><span class="p">)</span>
+</code></pre></div>
+
+<p>Both the request scheme and authentication scheme makes use of the same secret key! With a bit of research, it is revealed, that AES GCM uses ECB as a backend encryption algorithm. Well, it's unfair to call it ECB, as all AES encryption is based on the single block encryption scheme that ECB uses. Bringing out the diagram again:</p>
+<p><img alt="" src="aes_gcm.png" /></p>
+<p>We see that the iv is encrypted into the mask HF. Notably, we are in control of the value $j_0$ that is passed to the encryption. As we can easily calculate the mask HF, placing any string in $j_0$ will result in HF becoming that string, but encrypted. That is exactly what we need: an oracle to get the encryption of the value "flag.png".</p>
+<p>This is where GCM comes along to ruin the day. As GCM is defined, for any nonce with input size other than 12, it is actually passed through GHASH before becoming $j_0$. If you remember the code:</p>
+<div class="codehilite"><pre><span></span><code>        <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">nonce</span><span class="p">)</span> <span class="o">==</span> <span class="mi">16</span>
+</code></pre></div>
+
+<p>this would seem to be our problem. In order to get the correct value in $j_0$, we would need to know the plaintext that hashes into "flag.png". This actually took me quite a while to figure out. I went in with the assumption that hashes couldn't be reversed: that's crypto 101, right? Let this be a lesson to myself, that you should never take your knowledge for granted. Specifically, GHASH is actually the exception to that rule.</p>
+<p>The GHASH algorithm is defined as follows (<a href="https://nvlpubs.nist.gov/nistpubs/legacy/sp/nistspecialpublication800-38d.pdf">source</a>):</p>
+<p>Define:</p>
+<ul>
+<li>
+<p>Let X be the input bit string of length $128m$.</p>
+</li>
+<li>
+<p>Let H be the hash subkey.</p>
+</li>
+<li>
+<p>Let $X_1$, $X_2$, ..., $X_{m-1}$, $X_m$ denote the unique sequence of blocks, such that $X=X_1||X_2||...||X_{m-1}||X_m$.</p>
+</li>
+<li>
+<p>Let $Y_0$ be the "zero block", $0^{128}$.</p>
+</li>
+</ul>
+<p>For $i=1, ..., m$, let $Y_i=(Y_{i-1}\space\newcommand*\xor{\oplus}\space X_i)\cdot H$.<br />
+Return $Y_m$.</p>
+<p>In implementations of GHASH, the length of associated data and ciphertext are added on the back as another block. As such, for our single block input, this is the same as:</p>
+<p>
+<script type="math/tex; mode=display">j_0=(X_0\cdot H\space\newcommand*\xor{\oplus}\space X_1)\cdot H</script>
+</p>
+<p>where $X_1$ is the length of associated data and ciphertext concatenated. The critical thing here, is our ability to reverse this. The XOR is simple to reverse, the multiplication is a little harder. Here we must use the multiplicative inverse of $H$, or $H^{-1}$. $H^{-1}$ is defined as the polynomial that fulfills the statement $H\cdot H^{-1}=1$. In other words, it can be used to reverse GHASH. As such, reversing GHASH (in our case) amounts to the following psudocode:</p>
+<div class="codehilite"><pre><span></span><code><span class="n">p</span> <span class="o">=</span> <span class="n">T</span>
+<span class="n">p</span> <span class="o">*=</span> <span class="n">H</span> <span class="o">^</span> <span class="o">-</span><span class="mi">1</span>
+<span class="n">p</span> <span class="o">+=</span> <span class="nb">len</span><span class="p">(</span><span class="n">AD</span><span class="p">)</span> <span class="o">||</span> <span class="nb">len</span><span class="p">(</span><span class="n">C</span><span class="p">)</span> 
+<span class="n">p</span> <span class="o">*=</span> <span class="n">H</span> <span class="o">^</span> <span class="o">-</span><span class="mi">1</span>  
+<span class="k">return</span> <span class="n">p</span>
+</code></pre></div>
+
+<p>Since associated data is null, it is reduced to only the length of ct.</p>
+<p>With this, we are able to calculate the given value that GHASHes into the string "flag.png". Passing this value as a nonce, we are able to recover HF by XORing the GHASH and tag. This HF would then be equal to the encrypted value "flag.png", and we can pass it to the server.</p>
+<hr />
+<h3>Solution</h3>
+<p>I based my solution on code that can be found <a href="https://github.com/jvdsn/crypto-attacks/blob/master/attacks/gcm/forbidden_attack.py">here</a>. The script must be run with sage, as that is what does all the magic. I swear to god, if i had to implement this myself, i wouldn't have solved this challenge. Note, that the script will not run if using the file extension .sage. Instead, use .py as if it was a plain python file. Be sure to have pycryptodome install in sage.</p>
+<div class="codehilite"><pre><span></span><code><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Original code: https://github.com/jvdsn/crypto-attacks/blob/master/attacks/gcm/forbidden_attack.py</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span> <span class="nn">sage.all</span> <span class="kn">import</span> <span class="n">GF</span>
+<span class="kn">from</span> <span class="nn">Crypto.Util.number</span> <span class="kn">import</span> <span class="n">long_to_bytes</span>
+<span class="kn">from</span> <span class="nn">Crypto.Util.strxor</span> <span class="kn">import</span> <span class="n">strxor</span>
+<span class="kn">import</span> <span class="nn">requests</span>
+
+
+<span class="n">x</span> <span class="o">=</span> <span class="n">GF</span><span class="p">(</span><span class="mi">2</span><span class="p">)[</span><span class="s2">&quot;x&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">gen</span><span class="p">()</span>
+<span class="n">gf2e</span> <span class="o">=</span> <span class="n">GF</span><span class="p">(</span><span class="mi">2</span> <span class="o">**</span> <span class="mi">128</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;y&quot;</span><span class="p">,</span> <span class="n">modulus</span><span class="o">=</span><span class="n">x</span> <span class="o">**</span> <span class="mi">128</span> <span class="o">+</span> <span class="n">x</span> <span class="o">**</span> <span class="mi">7</span> <span class="o">+</span> <span class="n">x</span> <span class="o">**</span> <span class="mi">2</span> <span class="o">+</span> <span class="n">x</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+
+
+<span class="c1"># Converts an integer to a gf2e element, little endian.</span>
+<span class="k">def</span> <span class="nf">int_to_gf2e</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">gf2e</span><span class="p">([(</span><span class="n">n</span> <span class="o">&gt;&gt;</span> <span class="n">i</span><span class="p">)</span> <span class="o">&amp;</span> <span class="mi">1</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">127</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)])</span>
+
+
+<span class="c1"># Converts a gf2e element to an integer, little endian.</span>
+<span class="k">def</span> <span class="nf">gf2e_to_int</span><span class="p">(</span><span class="n">p</span><span class="p">):</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="n">p</span><span class="o">.</span><span class="n">integer_representation</span><span class="p">()</span>
+    <span class="n">ans</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">128</span><span class="p">):</span>
+        <span class="n">ans</span> <span class="o">&lt;&lt;=</span> <span class="mi">1</span>
+        <span class="n">ans</span> <span class="o">|=</span> <span class="p">((</span><span class="n">n</span> <span class="o">&gt;&gt;</span> <span class="n">i</span><span class="p">)</span> <span class="o">&amp;</span> <span class="mi">1</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">ans</span>
+
+
+<span class="c1"># Converts a gf2e element to bytes, little endian</span>
+<span class="k">def</span> <span class="nf">gf2e_to_bytes</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">gf2e_to_int</span><span class="p">(</span><span class="n">s</span><span class="p">)</span><span class="o">.</span><span class="n">to_bytes</span><span class="p">(</span><span class="mi">16</span><span class="p">,</span> <span class="n">byteorder</span><span class="o">=</span><span class="s2">&quot;big&quot;</span><span class="p">)</span>
+
+
+<span class="c1"># Converts bytes to a gf2e element, little endian</span>
+<span class="k">def</span> <span class="nf">bytes_to_gf2e</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">int_to_gf2e</span><span class="p">(</span><span class="nb">int</span><span class="o">.</span><span class="n">from_bytes</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">byteorder</span><span class="o">=</span><span class="s2">&quot;big&quot;</span><span class="p">))</span>
+
+
+<span class="c1"># Reverse the ghash function applied to single block input, taking standard padding into account</span>
+<span class="k">def</span> <span class="nf">reverse</span><span class="p">(</span><span class="n">h</span><span class="p">,</span> <span class="n">t</span><span class="p">):</span>
+    <span class="n">p</span> <span class="o">=</span> <span class="n">bytes_to_gf2e</span><span class="p">(</span><span class="n">t</span><span class="p">)</span>
+
+    <span class="n">p</span> <span class="o">*=</span> <span class="n">h</span><span class="o">**-</span><span class="mi">1</span>  <span class="c1"># First inversion</span>
+    <span class="n">p</span> <span class="o">+=</span> <span class="n">bytes_to_gf2e</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;</span><span class="se">\x00</span><span class="s2">&quot;</span> <span class="o">*</span> <span class="mi">8</span> <span class="o">+</span> <span class="n">long_to_bytes</span><span class="p">(</span><span class="mi">8</span> <span class="o">*</span> <span class="mi">16</span><span class="p">,</span> <span class="mi">8</span><span class="p">))</span>  <span class="c1"># ghash is by default padded with additional data and length of plaintext</span>
+
+    <span class="n">p</span> <span class="o">*=</span> <span class="n">h</span><span class="o">**-</span><span class="mi">1</span>  <span class="c1"># Second inversion</span>
+
+    <span class="k">return</span> <span class="n">gf2e_to_bytes</span><span class="p">(</span><span class="n">p</span><span class="p">)</span>
+
+
+<span class="c1"># Calculates the GHASH polynomial.</span>
+<span class="k">def</span> <span class="nf">ghash</span><span class="p">(</span><span class="n">h</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">c</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Calculates the ghash for a given H, ciphertext and additional data</span>
+<span class="sd">    :param h: the authentication key to use (gf2e element)</span>
+<span class="sd">    :param a: the associated data of the message with the known tag (bytes)</span>
+<span class="sd">    :param c: the ciphertext of the message with the known tag (bytes)</span>
+<span class="sd">    :return: the ghashed value (gf2e element)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">la</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>
+    <span class="n">lc</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">c</span><span class="p">)</span>
+    <span class="n">p</span> <span class="o">=</span> <span class="n">gf2e</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">la</span> <span class="o">//</span> <span class="mi">16</span><span class="p">):</span>
+        <span class="n">p</span> <span class="o">+=</span> <span class="n">int_to_gf2e</span><span class="p">(</span><span class="nb">int</span><span class="o">.</span><span class="n">from_bytes</span><span class="p">(</span><span class="n">a</span><span class="p">[</span><span class="mi">16</span> <span class="o">*</span> <span class="n">i</span><span class="p">:</span><span class="mi">16</span> <span class="o">*</span> <span class="p">(</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)],</span> <span class="n">byteorder</span><span class="o">=</span><span class="s2">&quot;big&quot;</span><span class="p">))</span>
+        <span class="n">p</span> <span class="o">*=</span> <span class="n">h</span>
+
+    <span class="k">if</span> <span class="n">la</span> <span class="o">%</span> <span class="mi">16</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">p</span> <span class="o">+=</span> <span class="n">int_to_gf2e</span><span class="p">(</span><span class="nb">int</span><span class="o">.</span><span class="n">from_bytes</span><span class="p">(</span><span class="n">a</span><span class="p">[</span><span class="o">-</span><span class="p">(</span><span class="n">la</span> <span class="o">%</span> <span class="mi">16</span><span class="p">):]</span> <span class="o">+</span> <span class="nb">bytes</span><span class="p">(</span><span class="mi">16</span> <span class="o">-</span> <span class="n">la</span> <span class="o">%</span> <span class="mi">16</span><span class="p">),</span> <span class="n">byteorder</span><span class="o">=</span><span class="s2">&quot;big&quot;</span><span class="p">))</span>
+        <span class="n">p</span> <span class="o">*=</span> <span class="n">h</span>
+
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">lc</span> <span class="o">//</span> <span class="mi">16</span><span class="p">):</span>
+        <span class="n">p</span> <span class="o">+=</span> <span class="n">int_to_gf2e</span><span class="p">(</span><span class="nb">int</span><span class="o">.</span><span class="n">from_bytes</span><span class="p">(</span><span class="n">c</span><span class="p">[</span><span class="mi">16</span> <span class="o">*</span> <span class="n">i</span><span class="p">:</span><span class="mi">16</span> <span class="o">*</span> <span class="p">(</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)],</span> <span class="n">byteorder</span><span class="o">=</span><span class="s2">&quot;big&quot;</span><span class="p">))</span>
+        <span class="n">p</span> <span class="o">*=</span> <span class="n">h</span>
+
+    <span class="k">if</span> <span class="n">lc</span> <span class="o">%</span> <span class="mi">16</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">p</span> <span class="o">+=</span> <span class="n">int_to_gf2e</span><span class="p">(</span><span class="nb">int</span><span class="o">.</span><span class="n">from_bytes</span><span class="p">(</span><span class="n">c</span><span class="p">[</span><span class="o">-</span><span class="p">(</span><span class="n">lc</span> <span class="o">%</span> <span class="mi">16</span><span class="p">):]</span> <span class="o">+</span> <span class="nb">bytes</span><span class="p">(</span><span class="mi">16</span> <span class="o">-</span> <span class="n">lc</span> <span class="o">%</span> <span class="mi">16</span><span class="p">),</span> <span class="n">byteorder</span><span class="o">=</span><span class="s2">&quot;big&quot;</span><span class="p">))</span>
+        <span class="n">p</span> <span class="o">*=</span> <span class="n">h</span>
+
+    <span class="n">p</span> <span class="o">+=</span> <span class="n">int_to_gf2e</span><span class="p">(((</span><span class="mi">8</span> <span class="o">*</span> <span class="n">la</span><span class="p">)</span> <span class="o">&lt;&lt;</span> <span class="mi">64</span><span class="p">)</span> <span class="o">|</span> <span class="p">(</span><span class="mi">8</span> <span class="o">*</span> <span class="n">lc</span><span class="p">))</span>
+    <span class="n">p</span> <span class="o">*=</span> <span class="n">h</span>
+    <span class="k">return</span> <span class="n">p</span>
+
+
+<span class="k">def</span> <span class="nf">recover_possible_auth_keys</span><span class="p">(</span><span class="n">a1</span><span class="p">,</span> <span class="n">c1</span><span class="p">,</span> <span class="n">t1</span><span class="p">,</span> <span class="n">a2</span><span class="p">,</span> <span class="n">c2</span><span class="p">,</span> <span class="n">t2</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Recovers possible authentication keys from two messages encrypted with the same authentication key.</span>
+<span class="sd">    More information: Joux A., &quot;Authentication Failures in NIST version of GCM&quot;</span>
+<span class="sd">    :param a1: the associated data of the first message (bytes)</span>
+<span class="sd">    :param c1: the ciphertext of the first message (bytes)</span>
+<span class="sd">    :param t1: the authentication tag of the first message (bytes)</span>
+<span class="sd">    :param a2: the associated data of the second message (bytes)</span>
+<span class="sd">    :param c2: the ciphertext of the second message (bytes)</span>
+<span class="sd">    :param t2: the authentication tag of the second message (bytes)</span>
+<span class="sd">    :return: a generator generating possible authentication keys (gf2e element)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">h</span> <span class="o">=</span> <span class="n">gf2e</span><span class="p">[</span><span class="s2">&quot;h&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">gen</span><span class="p">()</span>
+    <span class="n">p1</span> <span class="o">=</span> <span class="n">ghash</span><span class="p">(</span><span class="n">h</span><span class="p">,</span> <span class="n">a1</span><span class="p">,</span> <span class="n">c1</span><span class="p">)</span> <span class="o">+</span> <span class="n">int_to_gf2e</span><span class="p">(</span><span class="nb">int</span><span class="o">.</span><span class="n">from_bytes</span><span class="p">(</span><span class="n">t1</span><span class="p">,</span> <span class="n">byteorder</span><span class="o">=</span><span class="s2">&quot;big&quot;</span><span class="p">))</span>
+    <span class="n">p2</span> <span class="o">=</span> <span class="n">ghash</span><span class="p">(</span><span class="n">h</span><span class="p">,</span> <span class="n">a2</span><span class="p">,</span> <span class="n">c2</span><span class="p">)</span> <span class="o">+</span> <span class="n">int_to_gf2e</span><span class="p">(</span><span class="nb">int</span><span class="o">.</span><span class="n">from_bytes</span><span class="p">(</span><span class="n">t2</span><span class="p">,</span> <span class="n">byteorder</span><span class="o">=</span><span class="s2">&quot;big&quot;</span><span class="p">))</span>
+
+    <span class="k">for</span> <span class="n">h</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="p">(</span><span class="n">p1</span> <span class="o">+</span> <span class="n">p2</span><span class="p">)</span><span class="o">.</span><span class="n">roots</span><span class="p">():</span>
+        <span class="k">yield</span> <span class="n">h</span>
+
+
+<span class="k">def</span> <span class="nf">forge_tag</span><span class="p">(</span><span class="n">h</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">target_a</span><span class="p">,</span> <span class="n">target_c</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Forges an authentication tag for a target message given a message with a known tag.</span>
+<span class="sd">    This method is best used with the authentication keys generated by the recover_possible_auth_keys method.</span>
+<span class="sd">    More information: Joux A., &quot;Authentication Failures in NIST version of GCM&quot;</span>
+<span class="sd">    :param h: the authentication key to use (gf2e element)</span>
+<span class="sd">    :param a: the associated data of the message with the known tag (bytes)</span>
+<span class="sd">    :param c: the ciphertext of the message with the known tag (bytes)</span>
+<span class="sd">    :param t: the known authentication tag (bytes)</span>
+<span class="sd">    :param target_a: the target associated data (bytes)</span>
+<span class="sd">    :param target_c: the target ciphertext (bytes)</span>
+<span class="sd">    :return: HF value to xor to tag (bytes), the forged authentication tag (bytes)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">source_ghash</span> <span class="o">=</span> <span class="n">gf2e_to_int</span><span class="p">(</span><span class="n">ghash</span><span class="p">(</span><span class="n">h</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">c</span><span class="p">))</span>
+    <span class="n">target_ghash</span> <span class="o">=</span> <span class="n">gf2e_to_int</span><span class="p">(</span><span class="n">ghash</span><span class="p">(</span><span class="n">h</span><span class="p">,</span> <span class="n">target_a</span><span class="p">,</span> <span class="n">target_c</span><span class="p">))</span>
+    <span class="n">HF</span> <span class="o">=</span> <span class="n">source_ghash</span> <span class="o">^</span> <span class="nb">int</span><span class="o">.</span><span class="n">from_bytes</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">byteorder</span><span class="o">=</span><span class="s2">&quot;big&quot;</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">HF</span><span class="o">.</span><span class="n">to_bytes</span><span class="p">(</span><span class="mi">16</span><span class="p">,</span> <span class="n">byteorder</span><span class="o">=</span><span class="s2">&quot;big&quot;</span><span class="p">),</span> <span class="p">(</span><span class="n">HF</span> <span class="o">^</span> <span class="n">target_ghash</span><span class="p">)</span><span class="o">.</span><span class="n">to_bytes</span><span class="p">(</span><span class="mi">16</span><span class="p">,</span> <span class="n">byteorder</span><span class="o">=</span><span class="s2">&quot;big&quot;</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">register</span><span class="p">(</span><span class="n">username</span><span class="p">,</span> <span class="n">nonce</span><span class="p">):</span>
+    <span class="n">resp</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">register_url</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">username</span><span class="p">,</span> <span class="n">nonce</span><span class="p">))</span>
+    <span class="n">ct</span><span class="p">,</span> <span class="n">tag</span> <span class="o">=</span> <span class="n">resp</span><span class="o">.</span><span class="n">headers</span><span class="p">[</span><span class="s2">&quot;Set-Cookie&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;=&quot;</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;;&quot;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;.&quot;</span><span class="p">)[</span><span class="mi">1</span><span class="p">:]</span>
+    <span class="k">return</span> <span class="nb">bytes</span><span class="o">.</span><span class="n">fromhex</span><span class="p">(</span><span class="n">ct</span><span class="p">),</span> <span class="nb">bytes</span><span class="o">.</span><span class="n">fromhex</span><span class="p">(</span><span class="n">tag</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">view</span><span class="p">(</span><span class="n">psyduck</span><span class="p">,</span> <span class="n">cookies</span><span class="p">):</span>
+    <span class="n">resp</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">view_url</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">psyduck</span><span class="p">),</span> <span class="n">cookies</span><span class="o">=</span><span class="n">cookies</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">resp</span><span class="o">.</span><span class="n">content</span>
+
+
+<span class="n">register_url</span> <span class="o">=</span> <span class="s2">&quot;http://authpriv.hkn/register?username=</span><span class="si">{}</span><span class="s2">&amp;nonce=</span><span class="si">{}</span><span class="s2">&quot;</span>
+<span class="n">view_url</span> <span class="o">=</span> <span class="s2">&quot;http://authpriv.hkn/view?psyduck=</span><span class="si">{}</span><span class="s2">&quot;</span>
+
+<span class="c1"># register_url = &quot;http://127.0.0.1:5000/register?username={}&amp;nonce={}&quot;</span>
+<span class="c1"># view_url = &quot;http://127.0.0.1:5000/view?psyduck={}&quot;</span>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Starting first round of requests:&quot;</span><span class="p">)</span>
+
+    <span class="n">nonce</span> <span class="o">=</span> <span class="p">(</span><span class="sa">b</span><span class="s2">&quot;</span><span class="se">\x00</span><span class="s2">&quot;</span> <span class="o">*</span> <span class="mi">16</span><span class="p">)</span><span class="o">.</span><span class="n">hex</span><span class="p">()</span>  <span class="c1"># Temporary nonce before H is calculated</span>
+
+    <span class="n">c1</span><span class="p">,</span> <span class="n">t1</span> <span class="o">=</span> <span class="n">register</span><span class="p">(</span><span class="s2">&quot;A&quot;</span><span class="p">,</span> <span class="n">nonce</span><span class="p">)</span>  <span class="c1"># Register with username A</span>
+    <span class="n">c2</span><span class="p">,</span> <span class="n">t2</span> <span class="o">=</span> <span class="n">register</span><span class="p">(</span><span class="s2">&quot;B&quot;</span><span class="p">,</span> <span class="n">nonce</span><span class="p">)</span>  <span class="c1"># Register with username B</span>
+
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;ciphertext A:</span><span class="se">\t\t\t</span><span class="si">{</span><span class="n">c1</span><span class="o">.</span><span class="n">hex</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;ciphertext B:</span><span class="se">\t\t\t</span><span class="si">{</span><span class="n">c2</span><span class="o">.</span><span class="n">hex</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;tag A:</span><span class="se">\t\t\t\t</span><span class="si">{</span><span class="n">t1</span><span class="o">.</span><span class="n">hex</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;tag B:</span><span class="se">\t\t\t\t</span><span class="si">{</span><span class="n">t2</span><span class="o">.</span><span class="n">hex</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">Calculating intermediate values:&quot;</span><span class="p">)</span>
+
+    <span class="n">p1</span> <span class="o">=</span> <span class="sa">b</span><span class="s1">&#39;{&quot;username&quot;: &quot;A&quot;, &quot;admin_access&quot;: false}&#39;</span>  <span class="c1"># Known plaintext for user A</span>
+    <span class="n">p2</span> <span class="o">=</span> <span class="sa">b</span><span class="s1">&#39;{&quot;username&quot;: &quot;B&quot;, &quot;admin_access&quot;: false}&#39;</span>  <span class="c1"># Known plaintext for user B</span>
+    <span class="n">target_p</span> <span class="o">=</span> <span class="sa">b</span><span class="s1">&#39;{&quot;username&quot;: &quot;A&quot;, &quot;admin_access&quot;: true }&#39;</span>  <span class="c1"># Target plaintext granting admin access</span>
+    <span class="n">mask</span> <span class="o">=</span> <span class="n">strxor</span><span class="p">(</span><span class="n">p1</span><span class="p">,</span> <span class="n">target_p</span><span class="p">)</span>  <span class="c1"># Calculate XOR difference between source and target</span>
+
+    <span class="n">h</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span><span class="n">recover_possible_auth_keys</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="n">c1</span><span class="p">,</span> <span class="n">t1</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="n">c2</span><span class="p">,</span> <span class="n">t2</span><span class="p">))</span>  <span class="c1"># Recover H from nonce reuse</span>
+
+    <span class="n">t</span> <span class="o">=</span> <span class="sa">b</span><span class="s2">&quot;flag.png</span><span class="se">\x08\x08\x08\x08\x08\x08\x08\x08</span><span class="s2">&quot;</span>  <span class="c1"># Target GHASH, padded by PKCS#7</span>
+    <span class="n">ghash_input</span> <span class="o">=</span> <span class="n">reverse</span><span class="p">(</span><span class="n">h</span><span class="p">,</span> <span class="n">t</span><span class="p">)</span>  <span class="c1"># Reverse ghash with 8 * 16 as X_2</span>
+
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;h:</span><span class="se">\t\t\t\t</span><span class="si">{</span><span class="n">gf2e_to_bytes</span><span class="p">(</span><span class="n">h</span><span class="p">)</span><span class="o">.</span><span class="n">hex</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;forged nonce:</span><span class="se">\t\t\t</span><span class="si">{</span><span class="n">ghash_input</span><span class="o">.</span><span class="n">hex</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;nonce ghash:</span><span class="se">\t\t\t</span><span class="si">{</span><span class="n">gf2e_to_bytes</span><span class="p">(</span><span class="n">ghash</span><span class="p">(</span><span class="n">h</span><span class="p">,</span> <span class="sa">b</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">ghash_input</span><span class="p">))</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>  <span class="c1"># Validate that it ghashes to the correct value (flag.png)</span>
+
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">Starting final round of requests:&quot;</span><span class="p">)</span>
+
+    <span class="n">nonce</span> <span class="o">=</span> <span class="n">ghash_input</span><span class="o">.</span><span class="n">hex</span><span class="p">()</span>  <span class="c1"># Reversed GHASH is new nonce</span>
+    <span class="n">cn</span><span class="p">,</span> <span class="n">tn</span> <span class="o">=</span> <span class="n">register</span><span class="p">(</span><span class="s2">&quot;A&quot;</span><span class="p">,</span> <span class="n">nonce</span><span class="p">)</span>  <span class="c1"># As nonce has changed, user A will encrypt differently</span>
+
+    <span class="n">target_c</span> <span class="o">=</span> <span class="n">strxor</span><span class="p">(</span><span class="n">cn</span><span class="p">,</span> <span class="n">mask</span><span class="p">)</span>  <span class="c1"># Just like CTR, ciphertext can be forged by XOR&#39;ing</span>
+    <span class="n">flag_id</span><span class="p">,</span> <span class="n">target_t</span> <span class="o">=</span> <span class="n">forge_tag</span><span class="p">(</span><span class="n">h</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="n">cn</span><span class="p">,</span> <span class="n">tn</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="n">target_c</span><span class="p">)</span>  <span class="c1"># Forge valid tag for new ciphertext</span>
+
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;ciphertext:</span><span class="se">\t\t\t</span><span class="si">{</span><span class="n">cn</span><span class="o">.</span><span class="n">hex</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;tag:</span><span class="se">\t\t\t\t</span><span class="si">{</span><span class="n">tn</span><span class="o">.</span><span class="n">hex</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;ciphertext target:</span><span class="se">\t</span><span class="si">{</span><span class="n">target_c</span><span class="o">.</span><span class="n">hex</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;tag target:</span><span class="se">\t\t\t</span><span class="si">{</span><span class="n">target_t</span><span class="o">.</span><span class="n">hex</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;flag id:</span><span class="se">\t\t\t</span><span class="si">{</span><span class="n">flag_id</span><span class="o">.</span><span class="n">hex</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+    <span class="n">content</span> <span class="o">=</span> <span class="n">view</span><span class="p">(</span><span class="n">flag_id</span><span class="o">.</span><span class="n">hex</span><span class="p">(),</span> <span class="p">{</span><span class="s2">&quot;permissions&quot;</span><span class="p">:</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">nonce</span><span class="si">}</span><span class="s2">.</span><span class="si">{</span><span class="n">target_c</span><span class="o">.</span><span class="n">hex</span><span class="p">()</span><span class="si">}</span><span class="s2">.</span><span class="si">{</span><span class="n">target_t</span><span class="o">.</span><span class="n">hex</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">})</span>
+
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s2">&quot;flag.png&quot;</span><span class="p">,</span> <span class="s2">&quot;w+b&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+        <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">content</span><span class="p">)</span>
+
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">Contents writen to flag.png&quot;</span><span class="p">)</span>
+</code></pre></div>
+
+<p>The code does a single pass with the username "A" and "B". It then uses the tag and ciphertext to recover H. Knowing H, it can forge a plaintext that GHASHes into "flag.png". It passes this nonce back into the server with the username "A". It can now calculate the target ciphertext with bit-flip, forge a valid tag with H, and then download the coveted image from the server.</p>
+<p><img alt="" src="flag.png" /></p>
+            </div>
+        
+        
+    </div>
+
+    </body>
+</html>
