@@ -19,6 +19,8 @@ body {
 .codehilite {
     overflow-x: auto;
     padding-left: 8px;
+    margin-top: 20px;
+    margin-bottom: 20px;
 }
 
 li p {
