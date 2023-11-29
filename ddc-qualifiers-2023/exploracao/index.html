@@ -1,0 +1,114 @@
+<!doctype html>
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <title>Writeups</title>
+        <link rel="stylesheet" href="/CTF-writeups/static/css/markdown.css">
+        <link rel="stylesheet" href="/CTF-writeups/static/css/base.css">
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Source+Code+Pro" rel="stylesheet">
+        <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.4/MathJax.js?config=TeX-AMS_HTML-full"></script>
+        <script type="text/x-mathjax-config">
+            MathJax.Hub.Config({
+                tex2jax: {
+                    inlineMath: [["$", "$"], ["\\\\(", "\\\\)"]],
+                    displayMath: [["$$", "$$"], ["\\[", "\\]"]],
+                    processEscapes: true
+                },
+                config: ["MMLorHTML.js"],
+                jax: ["input/TeX", "output/HTML-CSS", "output/NativeMML"],
+                extensions: ["MathMenu.js", "MathZoom.js"]
+            });
+        </script>
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.1/jquery.min.js"></script>
+        <script type="text/javascript" src="/CTF-writeups/static/js/scrypt.js"></script>
+        <script type="text/javascript" src="/CTF-writeups/static/js/aesjs.js"></script>
+    </head>
+    <body>
+        <div id="navbar">
+            <a href="/CTF-writeups" id="root-link">
+                <h2>Rektedekte</h2>
+            </a>
+            <ul id="nav-links">
+				<li><a href="/CTF-writeups/search" class="no-flash">
+					<img src="/CTF-writeups/static/img/search-icon.png" alt="Search icon" class="icon">
+				</a></li>
+                <li><a href="https://github.com/Rektedekte" class="no-flash" target=”_blank”>
+                    <img src="/CTF-writeups/static/img/github-icon.png" alt="Github icon" class="icon">
+                </a></li>
+                <li><a href="https://discordapp.com/users/277155307678072832" class="no-flash" target=”_blank”>
+                    <img src="/CTF-writeups/static/img/discord-icon.png" alt="Discord icon" class="icon">
+                </a></li>
+                <li><a href="https://app.hackthebox.com/users/1052687" class="no-flash" target=”_blank”>
+                    <img src="/CTF-writeups/static/img/hackthebox-icon.png" alt="Hackthebox icon" class="icon">
+                </a></li>
+            </ul>
+        </div>
+        
+    <div id="content">
+        <h3>
+            <a href="/CTF-writeups\ddc-qualifiers-2023">DDC-Qualifiers 2023</a>
+            <a href="/CTF-writeups\ddc-qualifiers-2023\exploracao/files.zip" class="text-right">Download</a>
+        </h3>
+        <h1>
+            <span>Exploracao</span>
+            <span class="text-right">[1]</span>
+        </h1>
+        <hr class="no-space">
+        
+            
+    <div class="tags">
+        
+            
+                <a href="/CTF-writeups/search?q=web" class="tag">web </a>
+            
+        
+    </div>
+
+        
+        
+            <div id="markdown">
+                <h3>Description</h3>
+<p>We are given a link to a website.</p>
+<blockquote>
+<p><strong>Proposed difficulty:</strong> Medium-Hard</p>
+<p><img alt="Budget GeoGuessr" src="https://i.imgur.com/eo9yXro.jpg" /></p>
+<p><a href="http://exploracao.hkn">http://exploracao.hkn</a></p>
+<p><em>Note: ingen form for bruteforcing er nødvendig for at løse denne opgave</em></p>
+</blockquote>
+<hr />
+<h3>TLDR</h3>
+<p>An example page of the i3geo development platforms contains an endpoint <code>codemirror.php</code> with local file inclusion. Passing <code>flag.php</code> through a filter gives the source code, containing the flag:</p>
+<blockquote>
+<p><a href="http://exploracao.hkn/i3geo/exemplos/codemirror.php?pagina=php://filter/convert.base64-encode/resource=../flag.php">http://exploracao.hkn/i3geo/exemplos/codemirror.php?pagina=php://filter/convert.base64-encode/resource=../flag.php</a></p>
+</blockquote>
+<hr />
+<h3>Writeup</h3>
+<p>Opening the provided page, we are greeted with a large website. What immediatly stands out, is the link to a page called flag. Clicking it, we are redirected to a webpage, saying that flag is only visible to amin users, bummer. We can assume, that the goal is to request this page.</p>
+<p>As the challenge description seems to poke fun of something called i3geo, we can only assume that this is something outside of what the challenge creators have made. That would explain the amount of pages on this website, which is typically not found in ctf challenges. </p>
+<p>A quick google search reveals, that i3geo is a development platform for creating websites. Thinking that it's open source, searching for "i3geo github" gives a link to a github page, presumably containing the development platform used in the challenge:</p>
+<blockquote>
+<p><a href="https://github.com/saladesituacao/i3geo">https://github.com/saladesituacao/i3geo</a></p>
+</blockquote>
+<p>Checking <code>versao.php</code>  confirms this: V. 8.0 alfa. Checking the issue tab of the repository looks promising. There are multiple open vulnerabilities posted by the same user, back in 2022. As the XSS vulnerabilities seem irrelevant, we instead check the LFI vulnerability.</p>
+<p>This issue details an unrestricted Local File Inclusion on the <code>/exemplos/codemirror.php</code> endpoint. In this case, <code>codemirror.php</code> simply includes any file specified in the <code>pagina</code> parameter.</p>
+<p>We could try to exploit this, by seeing if any logs are available for an easy log poisoning, but as we know that the flag should be pressent in <code>flag.php</code>, there would be no need. Jumping back a folder to <code>flag.php</code> should work:</p>
+<blockquote>
+<p><a href="http://exploracao.hkn/i3geo/exemplos/codemirror.php?pagina=../flag.php">http://exploracao.hkn/i3geo/exemplos/codemirror.php?pagina=../flag.php</a></p>
+</blockquote>
+<p>This would not work however, as php include would execute the code, leading to the exact same page as before. A quick google search reveals a solution: php filters. Essentially, before interpreting the included file, php can apply a filter, such as base64 encoding. Modifying the url to the following:</p>
+<blockquote>
+<p><a href="http://exploracao.hkn/i3geo/exemplos/codemirror.php?pagina=php://filter/convert.base64-encode/resource=../flag.php">http://exploracao.hkn/i3geo/exemplos/codemirror.php?pagina=php://filter/convert.base64-encode/resource=../flag.php</a></p>
+</blockquote>
+<p>Using this request yields a base64 string. Decoding it, we can see that it contains the flag:</p>
+<blockquote>
+<p>DDC{1nclu54o_d3_4rqu1v0_l0c4l}</p>
+</blockquote>
+            </div>
+        
+        
+    </div>
+
+    </body>
+</html>
