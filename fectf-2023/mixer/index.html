@@ -69,8 +69,13 @@
         
         
             <div id="markdown">
-                <h3>Description</h3>
-<p>For this challenge, we are given a binary along with a corresponding libc 2.36. Since the platform was on a closed network, I do not have the specific description provided with the challenge. However, I do know it contained a disclaimer, warning users that namespaces were available to everyone connecting.</p>
+                <h2>Description</h2>
+<p>For this challenge, we are given a binary along with a corresponding libc 2.36. It came with the following description:</p>
+<blockquote>
+<p>So... we've found this thing. Not really sure what it's for.</p>
+<p>Running at <code>mixer.ctf:1337</code>.</p>
+<p>Warning: be careful naming your namespace or other people may read your files!</p>
+</blockquote>
 <hr />
 <h2>TLDR</h2>
 <p>Triggering a race condition in <code>f_load</code> causes a dangling pointer to a freed chunk. Leaking pointers from overlapping chunks and carefully linking content pointers on the heap, turns tight restrictions into a powerful ARB-write primitive, which can be used to hijack program-flow.</p>

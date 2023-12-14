@@ -69,8 +69,19 @@
         
         
             <div id="markdown">
-                <h3>Description</h3>
-<p>For this challenge, we are given a binary along with a corresponding libc 2.36. I also do not have the description for this challenge, but the original did have a funny unintended. This writeup is for the vegan version of the challenge, the revenge to the original, which contained path traversal.</p>
+                <h2>Description</h2>
+<p>For this challenge, we are given a binary along with a corresponding libc 2.36. The included description is as follows:</p>
+<blockquote>
+<p>Please don't upload copyrighted material, kthxbye ;)</p>
+<p>Running at <code>dropzbox.ctf:1337</code>.</p>
+</blockquote>
+<p>The original challenge had a funny unintended. This lead to the release of a revenge challenge, which changed the description to:</p>
+<blockquote>
+<p>What?! Cheese is not vegan?</p>
+<p>Please don't upload copyrighted material, kthxbye ;)</p>
+<p>Running at <code>dropzbox-vegan.ctf:1337</code>.</p>
+</blockquote>
+<p>This writeup is for the vegan version of the challenge. To solve the original, simply do path traversal.</p>
 <hr />
 <h2>TLDR</h2>
 <p>Abusing an error in the LZ77 decoder, values from outside the buffer can be copied into the buffer. Using the checksum verification, the content of these can be brute forced. Once a stack pointer has been leaked, the canary can be leaked with a similar method, by redirecting the <code>buffer</code> pointer. Once the canary is known, one can simply ROP to system.</p>
